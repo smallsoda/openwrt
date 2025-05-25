@@ -131,6 +131,15 @@ define Device/asus_rt-n12-vp-b1
 endef
 TARGET_DEVICES += asus_rt-n12-vp-b1
 
+
+define Device/bilberry_hlk-7688a
+  IMAGE_SIZE := 32448k
+  DEVICE_VENDOR := Bilberry
+  DEVICE_MODEL := V1
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci kmod-usb-ledtrig-usbport
+endef
+TARGET_DEVICES += bilberry_hlk-7688a
+
 define Device/buffalo_wcr-1166ds
   IMAGE_SIZE := 7936k
   BUFFALO_TAG_PLATFORM := MTK
