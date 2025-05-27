@@ -58,6 +58,11 @@
 		compatible = "umw,lm75b", "national,lm75b";
 		reg = <0x4f>;
 	};
+
+	ch423: ch423@24 {
+		compatible = "winchiphead,ch423";
+		reg = <0x24>;
+	};
 };
 
 &spi0 {
