@@ -40,7 +40,7 @@
 
 &state_default {
 	gpio {
-		groups = "wdt", "wled_an";
+		groups = "wdt", "wled_an", "i2s";
 		function = "gpio";
 	};
 };
