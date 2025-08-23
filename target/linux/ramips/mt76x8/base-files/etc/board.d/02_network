@@ -61,6 +61,7 @@ ramips_setup_interfaces()
 	tplink,tl-wr842n-v5|\
 	tplink,tl-wr850n-v2|\
 	unielec,u7628-01-16m|\
+	wolfberry,m1|\
 	wrtnode,wrtnode2p|\
 	wrtnode,wrtnode2r|\
 	zyxel,keenetic-extra-ii)
@@ -277,6 +278,7 @@ ramips_setup_macs()
 	wavlink,wl-wn531a3|\
 	wavlink,wl-wn577a2|\
 	wavlink,wl-wn578a2|\
+	wolfberry,m1|\
 	zbtlink,zbt-we2426-b)
 		wan_mac=$(mtd_get_mac_binary factory 0x2e)
 		label_mac=$(mtd_get_mac_binary factory 0x4)

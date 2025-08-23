@@ -1246,6 +1246,14 @@ define Device/wodesys_wd-r1208u
 endef
 TARGET_DEVICES += wodesys_wd-r1208u
 
+define Device/wolfberry_m1
+  IMAGE_SIZE := 32448k
+  DEVICE_VENDOR := Wolfberry
+  DEVICE_MODEL := M1
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci kmod-usb-ledtrig-usbport
+endef
+TARGET_DEVICES += wolfberry_m1
+
 define Device/wrtnode_wrtnode2p
   IMAGE_SIZE := 32448k
   DEVICE_VENDOR := WRTnode
