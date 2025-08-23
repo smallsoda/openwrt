@@ -1,0 +1,38 @@
+From 5b01ce3b3b99b2e2346a3d51984682fe23be2b24 Mon Sep 17 00:00:00 2001
+From: Dmitry Proshutinsky <sodaspace@yandex.ru>
+Date: Tue, 27 May 2025 21:41:04 +0300
+Subject: [PATCH] ch423: add of_match_table compatible property
+
+Signed-off-by: Dmitry Proshutinsky <sodaspace@yandex.ru>
+---
+ ch423.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/ch423.c b/ch423.c
+index 9266f00..50e0a76 100644
+--- a/ch423.c
++++ b/ch423.c
+@@ -306,6 +306,12 @@ static int ch423_probe(struct i2c_client *client
+ 	return devm_gpiochip_add_data(&client->dev, gpio, dev);
+ }
+ 
++static const struct of_device_id ch423_of_id[] = {
++	{ .compatible = "winchiphead,ch423" },
++	{},
++};
++MODULE_DEVICE_TABLE(of, ch423_of_id);
++
+ static const struct i2c_device_id ch423_i2c_id[] = {
+ 	{ "ch423" },
+ 	{},
+@@ -315,6 +321,7 @@ MODULE_DEVICE_TABLE(i2c, ch423_i2c_id);
+ static struct i2c_driver ch423_driver = {
+ 	.driver = {
+ 		.name   = "ch423",
++		.of_match_table = ch423_of_id,
+ 	},
+ 	.probe      = ch423_probe,
+ 	.id_table   = ch423_i2c_id,
+-- 
+2.34.1
+
