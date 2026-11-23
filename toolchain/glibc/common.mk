@@ -7,13 +7,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=glibc
-PKG_VERSION:=2.41
-PKG_RELEASE:=2
+PKG_VERSION:=2.44
+PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=e7c419a2957590fb657900fc92a89708f41abd9d
-PKG_MIRROR_HASH:=8613b8765c8651888178623355bb019538a1e1e32d9cc5a83ab7f063054748e1
+PKG_SOURCE_VERSION:=049ee6efc26ad8919ff497ef1906878d02c2ff80
+PKG_MIRROR_HASH:=0034ae27d1ef9f183d75857baf1f331d479a08c3a633f63b002baaca0986bd6d
 PKG_SOURCE_URL:=https://sourceware.org/git/glibc.git
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.zst
 PKG_CPE_ID:=cpe:/a:gnu:glibc
@@ -68,6 +68,7 @@ GLIBC_CONFIGURE:= \
 		  $(if $(CONFIG_PKG_RELRO_FULL),--enable-bind-now) \
 		  $(if $(CONFIG_PKG_FORTIFY_SOURCE_1),--enable-fortify-source=1) \
 		  $(if $(CONFIG_PKG_FORTIFY_SOURCE_2),--enable-fortify-source=2) \
+		  $(if $(CONFIG_PKG_FORTIFY_SOURCE_3),--enable-fortify-source=3) \
 		--enable-kernel=6.6.0
 
 export libc_cv_ssp=no

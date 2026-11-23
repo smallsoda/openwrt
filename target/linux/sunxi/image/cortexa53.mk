@@ -11,6 +11,12 @@ define Device/sun50i
   KERNEL_NAME := Image
 endef
 
+define Device/sun55i
+  $(call Device/FitImageLzma)
+  SUNXI_DTS_DIR := allwinner/
+  KERNEL_NAME := Image
+endef
+
 define Device/sun50i-a64
   SOC := sun50i-a64
   $(Device/sun50i)
@@ -36,10 +42,20 @@ define Device/sun50i-h618
   $(Device/sun50i)
 endef
 
+define Device/sun55i-a527
+  SOC := sun55i-a527
+  $(Device/sun55i)
+endef
+
+define Device/sun55i-t527
+  SOC := sun55i-t527
+  $(Device/sun55i)
+endef
+
 define Device/friendlyarm_nanopi-neo-plus2
   DEVICE_VENDOR := FriendlyARM
   DEVICE_MODEL := NanoPi NEO Plus2
-  SUPPORTED_DEVICES:=nanopi-neo-plus2
+  SUPPORTED_DEVICES += nanopi-neo-plus2
   $(Device/sun50i-h5)
 endef
 TARGET_DEVICES += friendlyarm_nanopi-neo-plus2
@@ -47,7 +63,7 @@ TARGET_DEVICES += friendlyarm_nanopi-neo-plus2
 define Device/friendlyarm_nanopi-neo2
   DEVICE_VENDOR := FriendlyARM
   DEVICE_MODEL := NanoPi NEO2
-  SUPPORTED_DEVICES:=nanopi-neo2
+  SUPPORTED_DEVICES += nanopi-neo2
   $(Device/sun50i-h5)
 endef
 TARGET_DEVICES += friendlyarm_nanopi-neo2
@@ -56,7 +72,7 @@ define Device/friendlyarm_nanopi-r1s-h5
   DEVICE_VENDOR := FriendlyARM
   DEVICE_MODEL := Nanopi R1S H5
   DEVICE_PACKAGES := kmod-gpio-button-hotplug kmod-usb-net-rtl8152
-  SUPPORTED_DEVICES:=nanopi-r1s-h5
+  SUPPORTED_DEVICES += nanopi-r1s-h5
   $(Device/sun50i-h5)
 endef
 TARGET_DEVICES += friendlyarm_nanopi-r1s-h5
@@ -105,11 +121,18 @@ define Device/pine64_sopine-baseboard
 endef
 TARGET_DEVICES += pine64_sopine-baseboard
 
+define Device/radxa_cubie-a5e
+  $(Device/sun55i-a527)
+  DEVICE_VENDOR := Radxa
+  DEVICE_MODEL := Cubie A5E
+  SUPPORTED_DEVICES += cubie-a5e
+endef
+TARGET_DEVICES += radxa_cubie-a5e
+
 define Device/xunlong_orangepi-one-plus
   $(Device/sun50i-h6)
   DEVICE_VENDOR := Xunlong
   DEVICE_MODEL := Orange Pi One Plus
-  SUNXI_DTS_DIR := allwinner/
 endef
 TARGET_DEVICES += xunlong_orangepi-one-plus
 
@@ -147,3 +170,12 @@ define Device/xunlong_orangepi-zero-plus
   $(Device/sun50i-h5)
 endef
 TARGET_DEVICES += xunlong_orangepi-zero-plus
+
+define Device/yuzukihd_avaota-a1
+  DEVICE_VENDOR := YuzukiHD
+  DEVICE_MODEL := Avaota A1
+  SUPPORTED_DEVICES += avaota-a1
+  $(Device/sun55i)
+  SOC := sun55i-t527
+endef
+TARGET_DEVICES += yuzukihd_avaota-a1

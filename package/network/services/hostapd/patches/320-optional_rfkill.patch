@@ -12,7 +12,7 @@ Subject: [PATCH] hostapd: make rfkill support optional
  NEED_RADIOTAP=y
  NEED_LIBNL=y
  endif
-@@ -111,7 +110,6 @@ DRV_WPA_CFLAGS += -DCONFIG_DRIVER_WEXT
+@@ -91,7 +90,6 @@ DRV_WPA_CFLAGS += -DCONFIG_DRIVER_WEXT
  CONFIG_WIRELESS_EXTENSION=y
  NEED_NETLINK=y
  NEED_LINUX_IOCTL=y
@@ -20,7 +20,7 @@ Subject: [PATCH] hostapd: make rfkill support optional
  endif
  
  ifdef CONFIG_DRIVER_NDIS
-@@ -137,7 +135,6 @@ endif
+@@ -117,7 +115,6 @@ endif
  ifdef CONFIG_WIRELESS_EXTENSION
  DRV_WPA_CFLAGS += -DCONFIG_WIRELESS_EXTENSION
  DRV_WPA_OBJS += ../src/drivers/driver_wext.o
@@ -28,17 +28,17 @@ Subject: [PATCH] hostapd: make rfkill support optional
  endif
  
  ifdef NEED_NETLINK
-@@ -146,6 +143,7 @@ endif
+@@ -126,6 +123,7 @@ endif
  
  ifdef NEED_RFKILL
  DRV_OBJS += ../src/drivers/rfkill.o
-+DRV_WPA_CFLAGS += -DCONFIG_RFKILL
++DRV_CFLAGS += -DCONFIG_RFKILL
  endif
  
  ifdef NEED_RADIOTAP
 --- a/src/drivers/rfkill.h
 +++ b/src/drivers/rfkill.h
-@@ -18,8 +18,24 @@ struct rfkill_config {
+@@ -18,8 +18,25 @@ struct rfkill_config {
  	void (*unblocked_cb)(void *ctx);
  };
  
@@ -49,6 +49,7 @@ Subject: [PATCH] hostapd: make rfkill support optional
 +#else
 +static inline struct rfkill_data * rfkill_init(struct rfkill_config *cfg)
 +{
++	os_free(cfg); /* rfkill_init() takes ownership on success */
 +	return (void *) 1;
 +}
 +

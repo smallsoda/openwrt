@@ -155,7 +155,9 @@ $(eval $(call KernelPackage,mlx_wdt))
 define KernelPackage/mlxreg
   SUBMENU:=$(OTHER_MENU)
   TITLE:=Mellanox platform register access
-  DEPENDS:=@TARGET_x86 +kmod-i2c-mux-mlxcpld
+  DEPENDS:=@TARGET_x86 \
+	+kmod-i2c-mux-mlxcpld \
+	+kmod-i2c-mux-reg
   KCONFIG:= \
 	CONFIG_MELLANOX_PLATFORM=y \
 	CONFIG_MLX_PLATFORM \
@@ -164,7 +166,7 @@ define KernelPackage/mlxreg
 	CONFIG_SENSORS_MLXREG_FAN \
 	CONFIG_LEDS_MLXREG
   FILES:= \
-	$(LINUX_DIR)/drivers/platform/x86/mlx-platform.ko \
+	$(LINUX_DIR)/drivers/platform/mellanox/mlx-platform.ko \
 	$(LINUX_DIR)/drivers/platform/mellanox/mlxreg-hotplug.ko \
 	$(LINUX_DIR)/drivers/platform/mellanox/mlxreg-io.ko \
 	$(LINUX_DIR)/drivers/hwmon/mlxreg-fan.ko \
@@ -295,7 +297,6 @@ define KernelPackage/parport-pc
 	CONFIG_PARPORT_PC_PCMCIA=n \
 	CONFIG_PARPORT_PC_SUPERIO=y \
 	CONFIG_PARPORT_SERIAL=n \
-	CONFIG_PARIDE=n \
 	CONFIG_SCSI_IMM=n \
 	CONFIG_SCSI_PPA=n
   FILES:= \
@@ -309,7 +310,7 @@ $(eval $(call KernelPackage,parport-pc))
 define KernelPackage/lp
   SUBMENU:=$(OTHER_MENU)
   TITLE:=Parallel port line printer device support
-  DEPENDS:=+kmod-ppdev
+  DEPENDS:=printer-support +kmod-ppdev
   KCONFIG:= \
 	CONFIG_PRINTER
   FILES:= \
@@ -328,7 +329,6 @@ define KernelPackage/mmc
 	CONFIG_MMC \
 	CONFIG_MMC_BLOCK \
 	CONFIG_MMC_DEBUG=n \
-	CONFIG_MMC_UNSAFE_RESUME=n \
 	CONFIG_MMC_TIFM_SD=n \
 	CONFIG_MMC_WBSD=n \
 	CONFIG_SDIO_UART=n
@@ -407,7 +407,7 @@ $(eval $(call KernelPackage,softdog))
 define KernelPackage/ssb
   SUBMENU:=$(OTHER_MENU)
   TITLE:=Silicon Sonics Backplane glue code
-  DEPENDS:=@PCI_SUPPORT @!TARGET_bcm47xx @!TARGET_bcm63xx
+  DEPENDS:=@PCI_SUPPORT @!TARGET_bcm47xx
   KCONFIG:=\
 	CONFIG_SSB \
 	CONFIG_SSB_B43_PCI_BRIDGE=y \
@@ -418,8 +418,7 @@ define KernelPackage/ssb
 	CONFIG_SSB_PCIHOST=y \
 	CONFIG_SSB_PCIHOST_POSSIBLE=y \
 	CONFIG_SSB_POSSIBLE=y \
-	CONFIG_SSB_SPROM=y \
-	CONFIG_SSB_SILENT=y
+	CONFIG_SSB_SPROM=y
   FILES:=$(LINUX_DIR)/drivers/ssb/ssb.ko
   AUTOLOAD:=$(call AutoLoad,18,ssb,1)
 endef
@@ -524,6 +523,22 @@ endef
 $(eval $(call KernelPackage,mtdram))
 
 
+define KernelPackage/phram
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=MTD device backed by physical RAM
+  KCONFIG:=CONFIG_MTD_PHRAM
+  FILES:=$(LINUX_DIR)/drivers/mtd/devices/phram.ko
+  AUTOLOAD:=$(call AutoProbe,phram)
+endef
+
+define KernelPackage/phram/description
+  Exposes a physical memory range as an MTD device. Memory regions can be
+  specified via module parameters or device tree nodes with compatible="phram".
+endef
+
+$(eval $(call KernelPackage,phram))
+
+
 define KernelPackage/ramoops
   SUBMENU:=$(OTHER_MENU)
   TITLE:=Ramoops (pstore-ram)
@@ -616,8 +631,8 @@ define KernelPackage/serial-8250-exar
   TITLE:=Exar 8250 UARTs
   KCONFIG:= CONFIG_SERIAL_8250_EXAR
   FILES:=$(LINUX_DIR)/drivers/tty/serial/8250/8250_exar.ko
-  AUTOLOAD:=$(call AutoProbe,8250 8250_base 8250_exar)
-  DEPENDS:=@PCI_SUPPORT +kmod-serial-8250
+  AUTOLOAD:=$(call AutoProbe,8250_exar)
+  DEPENDS:=@PCI_SUPPORT +kmod-serial-8250 +kmod-eeprom-93cx6
 endef
 
 define KernelPackage/serial-8250-exar/description
@@ -625,6 +640,24 @@ define KernelPackage/serial-8250-exar/description
 endef
 
 $(eval $(call KernelPackage,serial-8250-exar))
+
+
+define KernelPackage/serial-sc16is7xx
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=NXP SC16IS7xx SPI UARTs
+  KCONFIG:=CONFIG_SERIAL_SC16IS7XX
+  FILES:= \
+	$(LINUX_DIR)/drivers/tty/serial/sc16is7xx.ko \
+	$(LINUX_DIR)/drivers/tty/serial/sc16is7xx_spi.ko
+  AUTOLOAD:=$(call AutoProbe,sc16is7xx sc16is7xx_spi)
+  DEPENDS:=+kmod-regmap-spi
+endef
+
+define KernelPackage/serial-sc16is7xx/description
+ Kernel module for the NXP SC16IS7xx single and dual UART bridges on SPI.
+endef
+
+$(eval $(call KernelPackage,serial-sc16is7xx))
 
 
 define KernelPackage/regmap-core
@@ -720,7 +753,6 @@ define KernelPackage/zram
   KCONFIG:= \
 	CONFIG_ZSMALLOC \
 	CONFIG_ZRAM \
-	CONFIG_ZRAM_DEBUG=n \
 	CONFIG_ZRAM_WRITEBACK=n \
 	CONFIG_ZSMALLOC_STAT=n
   FILES:= \
@@ -735,49 +767,46 @@ endef
 
 define KernelPackage/zram/config
   if PACKAGE_kmod-zram
-    if !LINUX_6_6
-        config KERNEL_ZRAM_BACKEND_LZO
-                bool "lzo and lzo-rle compression support"
+    config KERNEL_ZRAM_BACKEND_LZO
+            bool "lzo and lzo-rle compression support"
 
-        config KERNEL_ZRAM_BACKEND_LZ4
-                bool "lz4 compression support"
+    config KERNEL_ZRAM_BACKEND_LZ4
+            bool "lz4 compression support"
 
-        config KERNEL_ZRAM_BACKEND_LZ4HC
-                bool "lz4hc compression support"
+    config KERNEL_ZRAM_BACKEND_LZ4HC
+            bool "lz4hc compression support"
 
-        config KERNEL_ZRAM_BACKEND_ZSTD
-                bool "zstd compression support"
+    config KERNEL_ZRAM_BACKEND_ZSTD
+            bool "zstd compression support"
 
-        config KERNEL_ZRAM_BACKEND_FORCE_LZO
-                def_bool !KERNEL_ZRAM_BACKEND_LZ4 && \
-                         !KERNEL_ZRAM_BACKEND_LZ4HC && \
-                         !KERNEL_ZRAM_BACKEND_ZSTD
-                select KERNEL_ZRAM_BACKEND_LZO
-
-    endif
+    config KERNEL_ZRAM_BACKEND_FORCE_LZO
+            def_bool !KERNEL_ZRAM_BACKEND_LZ4 && \
+                     !KERNEL_ZRAM_BACKEND_LZ4HC && \
+                     !KERNEL_ZRAM_BACKEND_ZSTD
+            select KERNEL_ZRAM_BACKEND_LZO
     choice
       prompt "ZRAM Default compressor"
       default KERNEL_ZRAM_DEF_COMP_LZORLE
 
     config KERNEL_ZRAM_DEF_COMP_LZORLE
             bool "lzo-rle"
-            depends on KERNEL_ZRAM_BACKEND_LZO || LINUX_6_6
+            depends on KERNEL_ZRAM_BACKEND_LZO
 
     config KERNEL_ZRAM_DEF_COMP_LZO
             bool "lzo"
-            depends on KERNEL_ZRAM_BACKEND_LZO || LINUX_6_6
+            depends on KERNEL_ZRAM_BACKEND_LZO
 
     config KERNEL_ZRAM_DEF_COMP_LZ4
             bool "lz4"
-            depends on KERNEL_ZRAM_BACKEND_LZ4 || LINUX_6_6
+            depends on KERNEL_ZRAM_BACKEND_LZ4
 
     config KERNEL_ZRAM_DEF_COMP_LZ4HC
             bool "lz4-hc"
-            depends on KERNEL_ZRAM_BACKEND_LZ4HC || LINUX_6_6
+            depends on KERNEL_ZRAM_BACKEND_LZ4HC
 
     config KERNEL_ZRAM_DEF_COMP_ZSTD
             bool "zstd"
-            depends on KERNEL_ZRAM_BACKEND_ZSTD || LINUX_6_6
+            depends on KERNEL_ZRAM_BACKEND_ZSTD
 
     endchoice
   endif
@@ -843,6 +872,7 @@ define KernelPackage/ptp
   DEPENDS:=+kmod-pps
   KCONFIG:= \
 	CONFIG_PTP_1588_CLOCK \
+	CONFIG_PTP_1588_CLOCK_OPTIONAL \
 	CONFIG_NET_PTP_CLASSIFY=y
   FILES:=$(LINUX_DIR)/drivers/ptp/ptp.ko
   AUTOLOAD:=$(call AutoLoad,18,ptp,1)
@@ -861,7 +891,7 @@ define KernelPackage/ptp-qoriq
   TITLE:=Freescale QorIQ PTP support
   DEPENDS:=@(TARGET_mpc85xx||TARGET_qoriq) +kmod-ptp
   KCONFIG:=CONFIG_PTP_1588_CLOCK_QORIQ
-  FILES:=$(LINUX_DIR)/drivers/ptp/ptp-qoriq.ko
+  FILES:=$(LINUX_DIR)/drivers/ptp/ptp_qoriq.ko
   AUTOLOAD:=$(call AutoProbe,ptp-qoriq)
 endef
 
@@ -885,6 +915,27 @@ define KernelPackage/random-core/description
 endef
 
 $(eval $(call KernelPackage,random-core))
+
+
+define KernelPackage/seg-led-gpio
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=GPIO seven-segment display support
+  DEPENDS:=@GPIO_SUPPORT
+  KCONFIG:= \
+	CONFIG_AUXDISPLAY=y \
+	CONFIG_LINEDISP \
+	CONFIG_SEG_LED_GPIO
+  FILES:= \
+	$(LINUX_DIR)/drivers/auxdisplay/line-display.ko \
+	$(LINUX_DIR)/drivers/auxdisplay/seg-led-gpio.ko
+  AUTOLOAD:=$(call AutoProbe,seg-led-gpio)
+endef
+
+define KernelPackage/seg-led-gpio/description
+  Support for seven-segment displays connected to GPIO pins.
+endef
+
+$(eval $(call KernelPackage,seg-led-gpio))
 
 
 define KernelPackage/thermal
@@ -916,20 +967,91 @@ endef
 $(eval $(call KernelPackage,thermal))
 
 
-define KernelPackage/echo
+define KernelPackage/tee
   SUBMENU:=$(OTHER_MENU)
-  TITLE:=Line Echo Canceller
-  KCONFIG:=CONFIG_ECHO
-  FILES:=$(LINUX_DIR)/drivers/misc/echo/echo.ko
-  AUTOLOAD:=$(call AutoLoad,50,echo)
+  TITLE:=Trusted Execution Environment (TEE) support
+  DEPENDS:=+kmod-dma-buf
+  KCONFIG:=CONFIG_TEE
+  FILES:=$(LINUX_DIR)/drivers/tee/tee.ko
+  AUTOLOAD:=$(call AutoLoad,20,tee,1)
 endef
 
-define KernelPackage/echo/description
- This driver provides line echo cancelling support for mISDN and
- DAHDI drivers
+define KernelPackage/tee/description
+  Generic Trusted Execution Environment subsystem, the interface used to
+  communicate with a trusted OS running in a secure environment.
 endef
 
-$(eval $(call KernelPackage,echo))
+$(eval $(call KernelPackage,tee))
+
+
+define KernelPackage/optee
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=OP-TEE driver
+  DEPENDS:=+kmod-i2c-core +kmod-tee
+  KCONFIG:= \
+	CONFIG_OPTEE \
+	CONFIG_OPTEE_INSECURE_LOAD_IMAGE=n
+  FILES:=$(LINUX_DIR)/drivers/tee/optee/optee.ko
+  AUTOLOAD:=$(call AutoLoad,21,optee,1)
+endef
+
+define KernelPackage/optee/description
+  Driver for OP-TEE, the Open Portable Trusted Execution Environment running
+  in the Arm secure world, reached over the SMCCC or FF-A transport.
+endef
+
+$(eval $(call KernelPackage,optee))
+
+
+define KernelPackage/optee-rng
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=OP-TEE based Random Number Generator
+  DEPENDS:=+kmod-optee +kmod-random-core
+  KCONFIG:=CONFIG_HW_RANDOM_OPTEE
+  FILES:=$(LINUX_DIR)/drivers/char/hw_random/optee-rng.ko
+  AUTOLOAD:=$(call AutoLoad,22,optee-rng,1)
+endef
+
+define KernelPackage/optee-rng/description
+  Exposes the random number generator provided by OP-TEE through the kernel
+  hwrng interface.
+endef
+
+$(eval $(call KernelPackage,optee-rng))
+
+
+define KernelPackage/scmi-transport-optee
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=SCMI transport based on OP-TEE service
+  DEPENDS:=@(TARGET_rockchip||TARGET_stm32) +kmod-optee
+  KCONFIG:=CONFIG_ARM_SCMI_TRANSPORT_OPTEE
+  FILES:=$(LINUX_DIR)/drivers/firmware/arm_scmi/transports/scmi_transport_optee.ko
+  AUTOLOAD:=$(call AutoProbe,scmi_transport_optee)
+endef
+
+define KernelPackage/scmi-transport-optee/description
+  Arm SCMI transport using an OP-TEE service to communicate with the
+  platform firmware implementing the SCMI server.
+endef
+
+$(eval $(call KernelPackage,scmi-transport-optee))
+
+
+define KernelPackage/tee-stmm-efi
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=TEE based EFI runtime variable service
+  DEPENDS:=@TARGET_armsr +kmod-optee
+  KCONFIG:=CONFIG_TEE_STMM_EFI
+  FILES:=$(LINUX_DIR)/drivers/firmware/efi/stmm/tee_stmm_efi.ko
+  AUTOLOAD:=$(call AutoProbe,tee_stmm_efi)
+endef
+
+define KernelPackage/tee-stmm-efi/description
+  Provides EFI runtime variable services through the StandAloneMM Trusted
+  Application running in OP-TEE.
+endef
+
+$(eval $(call KernelPackage,tee-stmm-efi))
 
 
 define KernelPackage/keys-encrypted
@@ -959,7 +1081,7 @@ define KernelPackage/keys-trusted
   DEPENDS:=@KERNEL_KEYS +kmod-crypto-hash +kmod-crypto-hmac +kmod-crypto-sha1 +kmod-tpm
   KCONFIG:=CONFIG_TRUSTED_KEYS
   FILES:= $(LINUX_DIR)/security/keys/trusted-keys/trusted.ko
-  AUTOLOAD:=$(call AutoLoad,01,trusted-keys,1)
+  AUTOLOAD:=$(call AutoLoad,01,trusted,1)
 endef
 
 define KernelPackage/keys-trusted/description
@@ -988,10 +1110,43 @@ endef
 
 $(eval $(call KernelPackage,tpm))
 
+define KernelPackage/tpm-crb
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=TCG CRB 2.0 TPM Interface
+  DEPENDS:=@(TARGET_x86||TARGET_armsr) +kmod-tpm
+  KCONFIG:=CONFIG_TCG_CRB
+  FILES:=$(LINUX_DIR)/drivers/char/tpm/tpm_crb.ko
+  AUTOLOAD:=$(call AutoLoad,15,tpm_crb,1)
+endef
+
+define KernelPackage/tpm-crb/description
+  This device driver implements the TPM interface as defined in
+  the TCG CRB 2.0 TPM specification.
+endef
+
+$(eval $(call KernelPackage,tpm-crb))
+
+define KernelPackage/tpm-ftpm-tee
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=TEE based firmware TPM (fTPM)
+  DEPENDS:=+kmod-tpm +kmod-optee
+  KCONFIG:=CONFIG_TCG_FTPM_TEE
+  FILES:=$(LINUX_DIR)/drivers/char/tpm/tpm_ftpm_tee.ko
+  AUTOLOAD:=$(call AutoLoad,30,tpm_ftpm_tee,1)
+endef
+
+define KernelPackage/tpm-ftpm-tee/description
+  Driver for a firmware TPM (fTPM) running as a Trusted Application inside a
+  TEE such as OP-TEE. It presents the fTPM to Linux as a TPM 2.0 device,
+  bound over the TEE client bus or a microsoft,ftpm device tree node.
+endef
+
+$(eval $(call KernelPackage,tpm-ftpm-tee))
+
 define KernelPackage/tpm-tis
   SUBMENU:=$(OTHER_MENU)
   TITLE:=TPM TIS 1.2 Interface / TPM 2.0 FIFO Interface
-	DEPENDS:= @(TARGET_x86||TARGET_armsr) +kmod-tpm
+	DEPENDS:= @(TARGET_x86||TARGET_armsr||TARGET_imx||TARGET_qualcommax) +kmod-tpm
   KCONFIG:= CONFIG_TCG_TIS
   FILES:= \
 	$(LINUX_DIR)/drivers/char/tpm/tpm_tis.ko \
@@ -1007,6 +1162,27 @@ define KernelPackage/tpm-tis/description
 endef
 
 $(eval $(call KernelPackage,tpm-tis))
+
+define KernelPackage/tpm-tis-spi
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=TPM TIS 1.3 Interface SPI Interface
+	DEPENDS:= +kmod-tpm-tis +kmod-spi-dev
+  KCONFIG:= CONFIG_TCG_TIS_SPI \
+	CONFIG_TCG_TIS_SPI_CR50=n
+  FILES:= \
+	$(LINUX_DIR)/drivers/char/tpm/tpm_tis_spi.ko
+  AUTOLOAD:=$(call AutoLoad,20,tpm_tis_spi,1)
+endef
+
+define KernelPackage/tpm-tis-spi/description
+	If you have a TPM security chip which is connected to a regular,
+	non-tcg SPI master that is compliant with the
+	TCG TIS 1.3 TPM specification (TPM1.2) or the TCG PTP FIFO
+	specification (TPM2.0) say Yes and it will be accessible from
+	within Linux.
+endef
+
+$(eval $(call KernelPackage,tpm-tis-spi))
 
 define KernelPackage/tpm-i2c-atmel
   SUBMENU:=$(OTHER_MENU)

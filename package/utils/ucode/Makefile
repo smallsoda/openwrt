@@ -11,14 +11,14 @@ PKG_NAME:=ucode
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL=https://github.com/jow-/ucode.git
-PKG_SOURCE_DATE:=2025-07-18
-PKG_SOURCE_VERSION:=3f64c8089bf3ea4847c96b91df09fbfcaec19e1d
-PKG_MIRROR_HASH:=55fbff7c527e1fadbda2e038636f39419649841ee63a5f3cdb50b9714b13420c
+PKG_SOURCE_URL=https://github.com/ucode-lang/ucode.git
+PKG_SOURCE_DATE:=2026-10-28
+PKG_SOURCE_VERSION:=dfc64d41fd720163ac21d9feb9cb224d1a80fd75
+PKG_MIRROR_HASH:=149deff35eca0d0aad2ff308023355def8453e71338cba3033483a13de63733f
 PKG_MAINTAINER:=Jo-Philipp Wich <jo@mein.io>
 PKG_LICENSE:=ISC
 
-PKG_ABI_VERSION:=20230711
+PKG_ABI_VERSION:=20261009
 PKG_BUILD_DEPENDS:=libmd
 HOST_BUILD_DEPENDS:=libjson-c/host
 
@@ -53,7 +53,11 @@ CMAKE_HOST_OPTIONS += \
 	-DULOOP_SUPPORT=OFF \
 	-DDEBUG_SUPPORT=ON \
 	-DLOG_SUPPORT=OFF \
-	-DDIGEST_SUPPORT=OFF
+	-DZLIB_SUPPORT=ON \
+	-DDIGEST_SUPPORT=OFF \
+	-DFFI_SUPPORT=OFF \
+	-DNETADDR_SUPPORT=OFF \
+	-DSERIAL_SUPPORT=OFF
 
 
 define Package/ucode/default
@@ -137,6 +141,10 @@ $(eval $(call UcodeModule, \
 	The debug plugin module provides runtime debugging and introspection facilities.))
 
 $(eval $(call UcodeModule, \
+	ffi, FFI_SUPPORT, +libffi, \
+	The ffi plugin module allows ucode scripts to call C functions in shared libraries through libffi.))
+
+$(eval $(call UcodeModule, \
 	fs, FS_SUPPORT, , \
 	The filesystem plugin module allows interaction with the local file system.))
 
@@ -149,6 +157,10 @@ $(eval $(call UcodeModule, \
 	The math plugin provides access to various <math.h> procedures.))
 
 $(eval $(call UcodeModule, \
+	netaddr, NETADDR_SUPPORT, , \
+	The netaddr plugin provides IPv4, IPv6 and MAC address parsing and calculation.))
+
+$(eval $(call UcodeModule, \
 	nl80211, NL80211_SUPPORT, +libnl-tiny +libubox, \
 	The nl80211 plugin provides access to the Linux wireless 802.11 netlink API.))
 
@@ -159,6 +171,10 @@ $(eval $(call UcodeModule, \
 $(eval $(call UcodeModule, \
 	rtnl, RTNL_SUPPORT, +libnl-tiny +libubox, \
 	The rtnl plugin provides access to the Linux routing netlink API.))
+
+$(eval $(call UcodeModule, \
+	serial, SERIAL_SUPPORT, , \
+	The serial plugin provides termios, modem control line and serial port configuration access.))
 
 $(eval $(call UcodeModule, \
 	socket, SOCKET_SUPPORT, , \
@@ -183,6 +199,14 @@ $(eval $(call UcodeModule, \
 $(eval $(call UcodeModule, \
 	digest, DIGEST_SUPPORT, , \
 	The digest module allows ucode scripts to use libmd digests.))
+
+$(eval $(call UcodeModule, \
+	io, IO_SUPPORT, , \
+	The io module allows direct file descriptor read/write (including non-blocking).))
+
+$(eval $(call UcodeModule, \
+	zlib, ZLIB_SUPPORT, +zlib, \
+	The zlib module allows ucode scripts to de/compress gzip and zlib formats.))
 
 $(eval $(call BuildPackage,libucode))
 $(eval $(call BuildPackage,ucode))

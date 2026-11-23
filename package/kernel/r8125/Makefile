@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=r8125
-PKG_VERSION:=9.016.00
+PKG_VERSION:=9.018.00
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=https://github.com/openwrt/rtl8125/releases/download/$(PKG_VERSION)
-PKG_HASH:=cd1955dd07d2f5a6faaa210ffc4e8af992421295a32ab6ddcfa759bed9eba922
+PKG_HASH:=66291cb5d4d3b359cfa0c9ca902028d9ce0f76065887cb64b4052dce4a676ff8
 
 PKG_BUILD_PARALLEL:=1
 PKG_LICENSE:=GPLv2
@@ -21,7 +21,7 @@ define KernelPackage/r8125
   DEPENDS:=@PCI_SUPPORT +kmod-libphy
   FILES:=$(PKG_BUILD_DIR)/src/r8125.ko
   AUTOLOAD:=$(call AutoProbe,r8125,1)
-  PROVIDES:=kmod-r8169
+  PROVIDES:=@kmod-r8169-any
   VARIANT:=regular
   PKG_MAKE_FLAGS += CONFIG_ASPM=n
 endef

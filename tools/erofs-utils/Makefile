@@ -7,16 +7,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=erofs-utils
-PKG_VERSION:=1.8.9
+PKG_VERSION:=1.9.4
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=https://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git
-PKG_MIRROR_HASH:=feab7386de6faf11cb29af5bfa240ea119b14bfd66c14d80de0509c1ab16dcc6
-PKG_SOURCE_DATE:=2025-06-26
-PKG_SOURCE_VERSION:=81169bf3cfd26b8f2b3aa3b20da23971168a90a9
+PKG_MIRROR_HASH:=322cc1862aed67a511519c5c82140b44b2f67de74e5e0ff5204312ec54e858b4
+PKG_SOURCE_DATE:=2026-08-19
+PKG_SOURCE_VERSION:=f36cadb5c563995ab3aa8572a60ed6b721b9557d
+PKG_CPE_ID:=cpe:/a:erofs-utils_project:erofs-utils
 
 PKG_FIXUP:=autoreconf
+
+HOST_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/host-build.mk
 

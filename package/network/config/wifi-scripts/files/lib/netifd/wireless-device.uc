@@ -1,8 +1,10 @@
 'use strict';
-import * as libubus from "ubus";
+import * as ubus from "ubus";
 import * as uloop from "uloop";
 import { is_equal } from "./utils.uc";
-import { access } from "fs";
+import { access, lsdir } from "fs";
+
+const wds_sta_re = /^(.+)\.sta[0-9]+$/;
 
 const NOTIFY_CMD_UP = 0;
 const NOTIFY_CMD_SET_DATA = 1;
@@ -12,13 +14,36 @@ const NOTIFY_CMD_SET_RETRY = 4;
 const DEFAULT_RETRY = 3;
 const DEFAULT_SCRIPT_TIMEOUT = 30 * 1000;
 
-export const mlo_name = "#mlo";
-
-let mlo_wdev;
 let wdev_cur;
 let wdev_handler = {};
 let wdev_script_task, wdev_script_timeout;
 let handler_timer;
+let round_start_cb;
+
+function supplicant_mld_start()
+{
+	ubus.call({
+		object: "wpa_supplicant",
+		method: "mld_start",
+		return: "ignore",
+		data: { },
+	});
+}
+
+function wireless_config_done()
+{
+	supplicant_mld_start();
+
+	ubus.call({
+		object: "service",
+		method: "event",
+		return: "ignore",
+		data: {
+			type: "netifd.wireless.done",
+			data: {},
+		},
+	});
+}
 
 function delete_wdev(name)
 {
@@ -44,7 +69,7 @@ function handle_link(dev, data, up)
 	};
 
 	if (ap && config.multicast_to_unicast != null)
-		dev_data.multicast_to_unicast = config.multicast_to_unicast;
+		dev_data.multicast_to_unicast = config.multicast_to_unicast ? 1 : 0;
 
 	if (data.type == "vif" && config.mode == "ap") {
 		dev_data.wireless_proxyarp = !!config.proxy_arp;
@@ -64,20 +89,15 @@ function handle_link(dev, data, up)
 		});
 }
 
-function wdev_mlo_fixup(config)
+function handle_wds_sta_links(data, netdevs)
 {
-	if (!mlo_wdev)
+	if (data.type != "vif" && data.type != "vlan")
 		return;
 
-	for (let name, iface in config.interfaces) {
-		let config = iface.config;
-
-		if (config.mode != "link")
-			continue;
-
-		let mlo_config = mlo_wdev.handler_data[iface.name];
-		if (mlo_config && mlo_config.ifname)
-			config.ifname = mlo_config.ifname;
+	for (let dev in netdevs) {
+		let m = match(dev, wds_sta_re);
+		if (m && m[1] == data.ifname)
+			handle_link(dev, data, true);
 	}
 }
 
@@ -142,8 +162,13 @@ function wdev_config_init(wdev)
 
 function wdev_setup_cb(wdev)
 {
-	if (wdev.state != "setup")
+	if (wdev.state != "setup") {
+		if (wdev.state == "up" && wdev.config_change) {
+			wdev_config_init(wdev);
+			wdev.setup();
+		}
 		return;
+	}
 
 	if (wdev.retry > 0)
 		wdev.retry--;
@@ -167,6 +192,9 @@ function wdev_teardown_cb(wdev)
 		delete_wdev(wdev.data.name);
 		return;
 	}
+
+	if (wdev.config_change)
+		wdev_config_init(wdev);
 
 	wdev.setup();
 }
@@ -199,9 +227,6 @@ function handler_sort_fn(a, b)
 
 function __run_next_handler_name()
 {
-	if (wdev_handler[mlo_name])
-		return mlo_name;
-
 	return sort(keys(wdev_handler), handler_sort_fn)[0];
 }
 
@@ -219,8 +244,6 @@ function __run_next_handler()
 	let cb = wdev_cur.cb;
 
 	wdev.dbg("run " + op);
-	if (name != mlo_name)
-		wdev_mlo_fixup(wdev.handler_config);
 	wdev.handler_config.data = wdev.handler_data[wdev.name] ?? {};
 	wdev_script_task = netifd.process({
 		cb: () => run_handler_cb(wdev, cb),
@@ -241,10 +264,16 @@ function run_next_handler()
 {
 	while (!wdev_cur && length(wdev_handler) > 0)
 		__run_next_handler();
+
+	if (!wdev_cur && !length(wdev_handler))
+		wireless_config_done();
 }
 
 function run_handler(wdev, op, cb)
 {
+	if (!wdev_cur && !length(wdev_handler) && round_start_cb)
+		round_start_cb();
+
 	wdev.dbg("queue " + op);
 	wdev_handler[wdev.name] = {
 		op, wdev, cb,
@@ -299,7 +328,7 @@ function setup()
 		return;
 
 	this.dbg("setup, state=" + this.state);
-	if (!this.autostart || this.retry_setup_failed || this.data.config.disabled)
+	if (!this.autostart || this.retry_setup_failed)
 		return;
 
 	wdev_proc_reset(this);
@@ -350,7 +379,7 @@ function wdev_update_disabled_vifs(wdev)
 
 		let name = vif.name;
 		if (enabled == false)
-			disabled[wdev] = true;
+			disabled[name] = true;
 		else if (ifindex != cache[name])
 			changed = true;
 
@@ -386,7 +415,6 @@ function update(data)
 
 	wdev_reset(this);
 	this.config_change = true;
-	this.check();
 }
 
 function start()
@@ -396,8 +424,6 @@ function start()
 
 	this.dbg("start, state=" + this.state);
 	this.autostart = true;
-	if (this.data.config.disabled)
-		return;
 
 	wdev_reset(this);
 
@@ -408,6 +434,19 @@ function start()
 		wdev_config_init(this);
 	this.setup();
 }
+
+
+function retry_setup()
+{
+	if (this.delete)
+		return;
+
+	if (this.state != "down" || !this.autostart)
+		return;
+
+	this.start();
+}
+
 
 function stop()
 {
@@ -429,11 +468,16 @@ function check()
 	if (!wdev_update_disabled_vifs(this))
 		return;
 
+	/*
+	 * Defer applying a new config while a handler run is in progress: the
+	 * running script keeps its start-time config, and the setup/teardown
+	 * callback re-applies once it finishes (config_change stays set).
+	 */
+	if (this.state != "up" && this.state != "down")
+		return;
+
 	wdev_config_init(this);
-	if (this.data.config.disabled)
-		this.teardown();
-	else
-		this.setup();
+	this.setup();
 }
 
 function wdev_mark_up(wdev)
@@ -442,17 +486,21 @@ function wdev_mark_up(wdev)
 	if (wdev.state != "setup")
 		return;
 
-	if (wdev.name == mlo_name)
-		mlo_wdev = wdev;
-
-	if (wdev.config_change) {
-		wdev.setup();
-		return;
+	if (wdev.cancel_setup || !wdev.autostart || wdev.delete) {
+		delete wdev.cancel_setup;
+		wdev.teardown();
+		return 0;
 	}
 
+	wdev_reset(wdev);
+
+	let netdevs = lsdir("/sys/class/net") ?? [];
 	for (let section, data in wdev.handler_data) {
-		if (data.ifname)
-			handle_link(data.ifname, data, true);
+		if (!data.ifname)
+			continue;
+
+		handle_link(data.ifname, data, true);
+		handle_wds_sta_links(data, netdevs);
 	}
 	wdev.state = "up";
 
@@ -462,30 +510,34 @@ function wdev_mark_up(wdev)
 function wdev_set_data(wdev, vif, vlan, data)
 {
 	let config = wdev.handler_config;
-	let cur = wdev;
+	let cur = { name: wdev.name };
 	let cur_type = "device";
 	if (!config)
-		return libubus.STATUS_INVALID_ARGUMENT;
+		return ubus.STATUS_INVALID_ARGUMENT;
 
 	if (vif) {
 		cur = vif = config.interfaces[vif];
 		if (!vif)
-			return libubus.STATUS_NOT_FOUND;
+			return ubus.STATUS_NOT_FOUND;
 		cur_type = "vif";
 	}
 
 	if (vlan) {
 		if (!vif)
-			return libubus.STATUS_INVALID_ARGUMENT;
+			return ubus.STATUS_INVALID_ARGUMENT;
 
 		cur = vlan = vif.vlans[vlan];
 		if (!vlan)
-			return libubus.STATUS_NOT_FOUND;
+			return ubus.STATUS_NOT_FOUND;
 
 		cur_type = "vlan";
 	}
 
-	wdev.handler_data[cur.name] = {
+	let key = cur.name;
+	if (cur_type == "vlan")
+		key = vif.name + "/" + vlan.name;
+
+	wdev.handler_data[key] = {
 		...cur,
 		...data,
 		type: cur_type,
@@ -504,7 +556,7 @@ function notify(req)
 	switch (req.args.command) {
 	case NOTIFY_CMD_UP:
 		if (vif || vlan || this.state != "setup")
-			return libubus.STATUS_INVALID_ARGUMENT;
+			return ubus.STATUS_INVALID_ARGUMENT;
 
 		return wdev_mark_up(this);
 	case NOTIFY_CMD_SET_DATA:
@@ -522,14 +574,14 @@ function notify(req)
 			this.retry = DEFAULT_RETRY;
 		return 0;
 	default:
-		return libubus.STATUS_INVALID_ARGUMENT;
+		return ubus.STATUS_INVALID_ARGUMENT;
 	}
 }
 
 function hotplug(name, add)
 {
 	let dev = name;
-	let m = match(name, /(.+)\.sta.+/);
+	let m = match(name, wds_sta_re);
 	if (m)
 		name = m[1];
 
@@ -542,15 +594,21 @@ function hotplug(name, add)
 	}
 }
 
-function get_status_data(wdev, vif)
+function get_status_data(wdev, vif, parent_vif)
 {
-	let hdata = wdev.handler_data[vif.name];
+	let key = vif.name;
+	if (parent_vif)
+		key = parent_vif.name + "/" + vif.name;
+
+	let hdata = wdev.handler_data[key];
 	let data = {
 		section: vif.name,
 		config: vif.config
 	};
 	if (hdata && hdata.ifname)
 		data.ifname = hdata.ifname;
+	if (hdata?.error)
+		data.error = hdata.error;
 	return data;
 }
 
@@ -558,7 +616,7 @@ function get_status_vlans(wdev, vif)
 {
 	let vlans = [];
 	for (let vlan in vif.vlan)
-		push(vlans, get_status_data(wdev, vlan));
+		push(vlans, get_status_data(wdev, vlan, vif));
 	return vlans;
 }
 
@@ -583,7 +641,7 @@ function status()
 		});
 	}
 	return {
-		up: this.state == "up",
+		up: this.state == "up" && !this.data.config.disabled,
 		pending: this.state == "setup" || this.state == "teardown",
 		autostart: this.autostart,
 		disabled: !!this.data.config.disabled,
@@ -614,6 +672,7 @@ function dbg(msg)
 const wdev_proto = {
 	update,
 	destroy,
+	retry_setup,
 	start,
 	stop,
 	setup,
@@ -623,6 +682,19 @@ const wdev_proto = {
 	notify,
 	hotplug,
 	dbg,
+};
+
+export function round_start_set(cb)
+{
+	round_start_cb = cb;
+};
+
+export function mld_start_idle()
+{
+	if (wdev_cur || length(wdev_handler) > 0)
+		return;
+
+	supplicant_mld_start();
 };
 
 export function new(data, script, driver)
@@ -636,6 +708,7 @@ export function new(data, script, driver)
 		ifindex_cache: {},
 
 		autostart: true,
+		config_change: true,
 		state: "down",
 	};
 	wdev_update_disabled_vifs(wdev);

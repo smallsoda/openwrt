@@ -9,11 +9,11 @@ SHELL:=sh
 PKG_NAME:=Build dependency
 
 $(eval $(call TestHostCommand,true, \
-	Please install GNU 'coreutils', \
+	Please install 'coreutils', \
 	$(TRUE)))
 
 $(eval $(call TestHostCommand,false, \
-	Please install GNU 'coreutils', \
+	Please install 'coreutils', \
 	$(FALSE); [ $$$$$$$$? = 1 ] && $(TRUE)))
 
 # Required for the toolchain
@@ -32,27 +32,27 @@ $(eval $(call TestHostCommand,proper-umask, \
 
 ifndef IB
 $(eval $(call SetupHostCommand,gcc, \
-	Please install the GNU C Compiler (gcc) 8 or later, \
-	$(CC) -dumpversion | grep -E '^([8-9]\.?|1[0-9]\.?)', \
-	gcc -dumpversion | grep -E '^([8-9]\.?|1[0-9]\.?)', \
-	gcc-8 -dumpversion | grep -E '^([8-9]\.?|1[0-9]\.?)', \
-	gcc --version | grep -E 'Apple.(LLVM|clang)' ))
+	Please install the GNU C Compiler (gcc) 10 or later, \
+	$(CC) -dumpversion | grep -E '^(1[0-9]|[2-9][0-9])\.?', \
+	gcc -dumpversion | grep -E '^(1[0-9]|[2-9][0-9])\.?', \
+	clang -dumpversion | grep -E '^(1[2-9]|[2-9][0-9])\.', \
+	clang-12 -dumpversion | grep -E '^(1[2-9]|[2-9][0-9])\.' ))
 
 $(eval $(call TestHostCommand,working-gcc, \
-	Please reinstall the GNU C Compiler (8 or later) - \
+	Please reinstall the GNU C Compiler (10 or later) - \
 	it appears to be broken, \
 	echo 'int main(int argc, char **argv) { return 0; }' | \
 		$(STAGING_DIR_HOST)/bin/gcc -x c -o $(TMP_DIR)/a.out -))
 
 $(eval $(call SetupHostCommand,g++, \
-	Please install the GNU C++ Compiler (g++) 8 or later, \
-	$(CXX) -dumpversion | grep -E '^([8-9]\.?|1[0-9]\.?)', \
-	g++ -dumpversion | grep -E '^([8-9]\.?|1[0-9]\.?)', \
-	g++-8 -dumpversion | grep -E '^([8-9]\.?|1[0-9]\.?)', \
-	g++ --version | grep -E 'Apple.(LLVM|clang)' ))
+	Please install the GNU C++ Compiler (g++) 10 or later, \
+	$(CXX) -dumpversion | grep -E '^(1[0-9]|[2-9][0-9])\.?', \
+	g++ -dumpversion | grep -E '^(1[0-9]|[2-9][0-9])\.?', \
+	clang++ -dumpversion | grep -E '^(1[2-9]|[2-9][0-9])\.', \
+	clang++-12 -dumpversion | grep -E '^(1[2-9]|[2-9][0-9])\.' ))
 
 $(eval $(call TestHostCommand,working-g++, \
-	Please reinstall the GNU C++ Compiler (8 or later) - \
+	Please reinstall the GNU C++ Compiler (10 or later) - \
 	it appears to be broken, \
 	echo 'int main(int argc, char **argv) { return 0; }' | \
 		$(STAGING_DIR_HOST)/bin/g++ -x c++ -o $(TMP_DIR)/a.out - -lstdc++ && \
@@ -178,31 +178,33 @@ $(eval $(call SetupHostCommand,bzip2,Please install 'bzip2', \
 $(eval $(call SetupHostCommand,wget,Please install GNU 'wget', \
 	wget --version | grep GNU))
 
-$(eval $(call SetupHostCommand,install,Please install GNU 'install', \
+$(eval $(call SetupHostCommand,install,Please install 'install', \
 	$(TOPDIR)/staging_dir/host/bin/ginstall --version | grep GNU, \
-	install --version | grep GNU, \
+	install --version | grep 'GNU\|uutils', \
 	ginstall --version | grep GNU))
 
 $(eval $(call SetupHostCommand,perl,Please install Perl 5.x, \
 	perl --version | grep "perl.*v5"))
 
-$(eval $(call SetupHostCommand,python,Please install Python >= 3.7, \
+$(eval $(call SetupHostCommand,python,Please install Python >= 3.8, \
+	python3.14 -V 2>&1 | grep 'Python 3', \
+	python3.13 -V 2>&1 | grep 'Python 3', \
 	python3.12 -V 2>&1 | grep 'Python 3', \
 	python3.11 -V 2>&1 | grep 'Python 3', \
 	python3.10 -V 2>&1 | grep 'Python 3', \
 	python3.9 -V 2>&1 | grep 'Python 3', \
 	python3.8 -V 2>&1 | grep 'Python 3', \
-	python3.7 -V 2>&1 | grep 'Python 3', \
-	python3 -V 2>&1 | grep -E 'Python 3\.([7-9]|[0-9][0-9])\.?'))
+	python3 -V 2>&1 | grep -E 'Python 3\.([8-9]|[0-9][0-9])\.?'))
 
-$(eval $(call SetupHostCommand,python3,Please install Python >= 3.7, \
+$(eval $(call SetupHostCommand,python3,Please install Python >= 3.8, \
+	python3.14 -V 2>&1 | grep 'Python 3', \
+	python3.13 -V 2>&1 | grep 'Python 3', \
 	python3.12 -V 2>&1 | grep 'Python 3', \
 	python3.11 -V 2>&1 | grep 'Python 3', \
 	python3.10 -V 2>&1 | grep 'Python 3', \
 	python3.9 -V 2>&1 | grep 'Python 3', \
 	python3.8 -V 2>&1 | grep 'Python 3', \
-	python3.7 -V 2>&1 | grep 'Python 3', \
-	python3 -V 2>&1 | grep -E 'Python 3\.([7-9]|[0-9][0-9])\.?'))
+	python3 -V 2>&1 | grep -E 'Python 3\.([8-9]|[0-9][0-9])\.?'))
 
 $(eval $(call TestHostCommand,python3-distutils, \
 	Please install the Python3 distutils module, \
@@ -237,7 +239,7 @@ endif
 
 $(STAGING_DIR_HOST)/bin/mkhash: $(SCRIPT_DIR)/mkhash.c
 	mkdir -p $(dir $@)
-	$(CC) -O2 -I$(TOPDIR)/tools/include -o $@ $<
+	$(STAGING_DIR_HOST)/bin/gcc -O2 -I$(TOPDIR)/tools/include -o $@ $<
 
 $(STAGING_DIR_HOST)/bin/xxd: $(SCRIPT_DIR)/xxdi.pl
 	$(LN) $< $@

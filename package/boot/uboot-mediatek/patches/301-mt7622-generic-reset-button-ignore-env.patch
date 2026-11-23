@@ -1,7 +1,7 @@
 --- a/board/mediatek/mt7622/mt7622_rfb.c
 +++ b/board/mediatek/mt7622/mt7622_rfb.c
-@@ -5,9 +5,16 @@
-  */
+@@ -1,9 +1,16 @@
+ // SPDX-License-Identifier: GPL-2.0
  
  #include <config.h>
 +#include <dm.h>
@@ -17,9 +17,9 @@
  
  #include <mtd.h>
  #include <linux/mtd/mtd.h>
-@@ -21,6 +28,28 @@ int board_init(void)
- 	return 0;
- }
+@@ -12,6 +19,28 @@
+ 
+ DECLARE_GLOBAL_DATA_PTR;
  
 +int board_late_init(void)
 +{
@@ -39,16 +39,16 @@
 +		}
 +	}
 +
-+ 	env_relocate();
-+ 	return 0;
-+ }
++	env_relocate();
++	return 0;
++}
 +
  int board_nmbm_init(void)
  {
  #ifdef CONFIG_ENABLE_NAND_NMBM
 --- a/arch/arm/mach-mediatek/Kconfig
 +++ b/arch/arm/mach-mediatek/Kconfig
-@@ -165,4 +165,11 @@ config MTK_TZ_MOVABLE
+@@ -215,4 +215,11 @@ config MTK_TZ_MOVABLE
  	select OF_SYSTEM_SETUP
  	bool
  

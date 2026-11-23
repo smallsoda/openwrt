@@ -1,12 +1,32 @@
 'use strict';
 
 import * as libubus from 'ubus';
+import * as nl80211 from 'nl80211';
 import * as fs from 'fs';
 
 global.ubus = libubus.connect();
 
 let config_data = '';
 let network_data = '';
+
+const nl80211_bands = [ '2g', '5g', '60g', '6g' ];
+
+export function wiphy_info(phy) {
+	let idx = +fs.readfile(`/sys/class/ieee80211/${phy}/index`);
+
+	return nl80211.request(nl80211.const.NL80211_CMD_GET_WIPHY, nl80211.const.NLM_F_DUMP, {
+		wiphy: idx,
+		split_wiphy_dump: true
+	});
+};
+
+export function wiphy_band(info, band) {
+	let band_idx = index(nl80211_bands, band);
+	if (band_idx < 0 || !info)
+		return;
+
+	return info.wiphy_bands[band_idx];
+};
 
 export function log(msg) {
 	printf(`wifi-scripts: ${msg}\n`);
@@ -50,6 +70,20 @@ export function append_string(key, value) {
 export function append_vars(dict, keys) {
 	for (let key in keys)
 		append(key, dict[key]);
+};
+
+/* emit one "key=value" line per list element (for options hostapd parses
+ * one entry per line, which must not be space-joined) */
+export function append_list(dict, keys) {
+	for (let key in keys) {
+		let val = dict[key];
+		if (val == null)
+			continue;
+		if (type(val) != 'array')
+			val = [ val ];
+		for (let v in val)
+			append(key, v);
+	}
 };
 
 export function append_string_vars(dict, keys) {
@@ -146,6 +180,14 @@ export function dump_network(file) {
 
 export function flush_config() {
 	config_data = '';
+};
+
+export function config_mark() {
+	return length(config_data);
+};
+
+export function config_rewind(mark) {
+	config_data = substr(config_data, 0, mark);
 };
 
 export function flush_network() {

@@ -223,7 +223,7 @@ define Device/dlink_dch-m225
   IMAGE_SIZE := 6848k
   DEVICE_VENDOR := D-Link
   DEVICE_MODEL := DCH-M225
-  DEVICE_PACKAGES := kmod-sound-core kmod-sound-mt7620 kmod-i2c-ralink
+  DEVICE_PACKAGES := kmod-sound-core kmod-sound-mt7620 kmod-i2c-ralink audio-support
   SUPPORTED_DEVICES += dch-m225
 endef
 TARGET_DEVICES += dlink_dch-m225
@@ -1044,7 +1044,7 @@ define Device/planex_cs-qr10
   DEVICE_VENDOR := Planex
   DEVICE_MODEL := CS-QR10
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci kmod-sound-core \
-	kmod-sound-mt7620 kmod-i2c-ralink kmod-mmc-mtk
+	kmod-sound-mt7620 kmod-i2c-ralink kmod-mmc-mtk audio-support
   SUPPORTED_DEVICES += cs-qr10
 endef
 TARGET_DEVICES += planex_cs-qr10
@@ -1138,10 +1138,12 @@ define Device/rostelecom_rt-fl-1
   $(Device/sercomm_cpj)
   DEVICE_MODEL := RT-FL-1
   DEVICE_ALT0_MODEL := RT-FL-1
+ifeq ($(IB),)
   ARTIFACT/initramfs-factory.img := \
 	append-image-stage initramfs-kernel.bin | check-size | \
 	sercomm-factory-cpj | gzip | sercomm-payload | \
 	sercomm-pid-setbit 0x11 | sercomm-crypto
+endif
 endef
 TARGET_DEVICES += rostelecom_rt-fl-1
 
@@ -1149,9 +1151,11 @@ define Device/rostelecom_s1010
   $(Device/sercomm_cpj)
   DEVICE_MODEL := S1010
   DEVICE_ALT0_MODEL := S1010.RT
+ifeq ($(IB),)
   ARTIFACT/initramfs-factory.img := \
 	append-image-stage initramfs-kernel.bin | check-size | \
 	sercomm-factory-cpj | gzip | sercomm-payload | sercomm-crypto
+endif
 endef
 TARGET_DEVICES += rostelecom_s1010
 
@@ -1484,7 +1488,7 @@ define Device/yukai_bocco
   IMAGE_SIZE := 7872k
   DEVICE_VENDOR := YUKAI Engineering
   DEVICE_MODEL := BOCCO
-  DEVICE_PACKAGES := kmod-sound-core kmod-sound-mt7620 kmod-i2c-ralink
+  DEVICE_PACKAGES := kmod-sound-core kmod-sound-mt7620 kmod-i2c-ralink audio-support
   SUPPORTED_DEVICES += bocco
 endef
 TARGET_DEVICES += yukai_bocco

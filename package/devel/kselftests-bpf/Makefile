@@ -24,10 +24,10 @@ define Package/kselftests-bpf
   SECTION:=devel
   CATEGORY:=Development
   DEPENDS:= \
-	+libelf +zlib +libpthread +librt +!LINUX_6_6:libpcap @!IN_SDK \
+	+libelf +zlib +libpthread +librt +libpcap @!IN_SDK \
 	@KERNEL_DEBUG_FS @KERNEL_DEBUG_INFO_BTF @KERNEL_BPF_EVENTS
   TITLE:=Linux Kernel Selftests (BPF)
-  URL:=http://www.kernel.org
+  URL:=https://www.kernel.org
 endef
 
 define Package/kselftests-bpf/description
@@ -42,10 +42,15 @@ MOD_TARGETS:= \
 
 MAKE_PATH:=tools/testing/selftests/bpf
 
+# Use SAN_CFLAGS to cover target libbpf as well as userspace selftests,
+# without passing target flags to host tools or kernel modules.
+# Clear SAN_LDFLAGS to prevent its default from exporting SAN_CFLAGS
+# through LDFLAGS to host tools.
 MAKE_VARS:= \
 	ARCH="$(LINUX_KARCH)" \
 	CROSS_COMPILE="$(TARGET_CROSS)" \
-	EXTRA_CFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \
+	SAN_CFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \
+	SAN_LDFLAGS="" \
 	LDLIBS="$(TARGET_LDFLAGS)" \
 	TOOLCHAIN_INCLUDE="$(TOOLCHAIN_INC_DIRS)" \
 	KBUILD_OUTPUT="$(LINUX_DIR)"

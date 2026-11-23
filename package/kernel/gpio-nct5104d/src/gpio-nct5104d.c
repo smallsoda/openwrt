@@ -14,7 +14,6 @@
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/gpio/driver.h>
-#include <linux/version.h>
 #include <linux/dmi.h>
 #include <linux/string.h>
 
@@ -124,18 +123,17 @@ static int nct5104d_gpio_direction_in(struct gpio_chip *chip, unsigned offset);
 static int nct5104d_gpio_get(struct gpio_chip *chip, unsigned offset);
 static int nct5104d_gpio_direction_out(struct gpio_chip *chip,
 				     unsigned offset, int value);
-static void nct5104d_gpio_set(struct gpio_chip *chip, unsigned offset, int value);
-
-#define NCT5104D_GPIO_BANK(_base, _ngpio, _regbase)			\
+static int nct5104d_gpio_set(struct gpio_chip *chip, unsigned offset, int value);
+#define NCT5104D_GPIO_BANK(_ngpio, _regbase, _label)			\
 	{								\
 		.chip = {						\
-			.label            = DRVNAME,			\
+			.label            = _label,			\
 			.owner            = THIS_MODULE,		\
 			.direction_input  = nct5104d_gpio_direction_in,	\
 			.get              = nct5104d_gpio_get,		\
 			.direction_output = nct5104d_gpio_direction_out,	\
 			.set              = nct5104d_gpio_set,		\
-			.base             = _base,			\
+			.base             = -1,				\
 			.ngpio            = _ngpio,			\
 			.can_sleep        = true,			\
 		},							\
@@ -146,8 +144,8 @@ static void nct5104d_gpio_set(struct gpio_chip *chip, unsigned offset, int value
 #define gpio_data(base) (base + 1)
 
 static struct nct5104d_gpio_bank nct5104d_gpio_bank[] = {
-	NCT5104D_GPIO_BANK(0 , 8, 0xE0),
-	NCT5104D_GPIO_BANK(10, 8, 0xE4)
+	NCT5104D_GPIO_BANK(8, 0xE0, DRVNAME "-0"),
+	NCT5104D_GPIO_BANK(8, 0xE4, DRVNAME "-1")
 };
 
 static int nct5104d_gpio_direction_in(struct gpio_chip *chip, unsigned offset)
@@ -219,7 +217,7 @@ static int nct5104d_gpio_direction_out(struct gpio_chip *chip,
 	return 0;
 }
 
-static void nct5104d_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
+static int nct5104d_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 {
 	int err;
 	struct nct5104d_gpio_bank *bank = gpiochip_get_data(chip);
@@ -228,7 +226,7 @@ static void nct5104d_gpio_set(struct gpio_chip *chip, unsigned offset, int value
 
 	err = superio_enter(sio->addr);
 	if (err)
-		return;
+		return err;
 	superio_select(sio->addr, SIO_LD_GPIO);
 
 	data_out = superio_inb(sio->addr, gpio_data(bank->regbase));
@@ -239,6 +237,8 @@ static void nct5104d_gpio_set(struct gpio_chip *chip, unsigned offset, int value
 	superio_outb(sio->addr, gpio_data(bank->regbase), data_out);
 
 	superio_exit(sio->addr);
+
+	return 0;
 }
 
 /*

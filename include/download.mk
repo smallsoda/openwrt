@@ -34,11 +34,9 @@ $(strip \
       $(if $(filter @OPENWRT @APACHE/% @DEBIAN/% @GITHUB/% @GNOME/% @GNU/% @KERNEL/% @SF/% @SAVANNAH/% ftp://% http://% https://% file://%,$(1)),default, \
         $(if $(filter git://%,$(1)),$(call dl_method_git,$(1),$(2)), \
           $(if $(filter svn://%,$(1)),svn, \
-            $(if $(filter cvs://%,$(1)),cvs, \
-              $(if $(filter hg://%,$(1)),hg, \
-                $(if $(filter sftp://%,$(1)),bzr, \
-                  unknown \
-                ) \
+            $(if $(filter hg://%,$(1)),hg, \
+              $(if $(filter sftp://%,$(1)),bzr, \
+                unknown \
               ) \
             ) \
           ) \
@@ -49,7 +47,7 @@ $(strip \
 )
 endef
 
-# code for creating tarballs from cvs/svn/git/bzr/hg/darcs checkouts - useful for mirror support
+# code for creating tarballs from svn/git/bzr/hg/darcs checkouts - useful for mirror support
 dl_pack/bz2=bzip2 -c > $(1)
 dl_pack/gz=gzip -nc > $(1)
 dl_pack/xz=xz -zc -7e > $(1)
@@ -65,6 +63,28 @@ endef
 
 gen_sha256sum = $(shell $(MKHASH) sha256 $(DL_DIR)/$(1))
 
+# $(1): file name, $(2): expected hash
+# Same as gen_sha256sum, but a file that matched the expected hash is only
+# hashed again after it changed. Large archives are otherwise hashed on
+# every parse of every Makefile that uses them.
+DL_VERIFIED_DIR:=$(TMP_DIR)/dl-verified
+define gen_sha256sum_cached
+$(shell \
+	stat_cmd="$(STAGING_DIR_HOST)/bin/stat"; \
+	[ -x "$$stat_cmd" ] || stat_cmd=stat; \
+	meta="$$("$$stat_cmd" -c '%i %s %Y %Z' $(DL_DIR)/$(1) 2>/dev/null)"; \
+	id="$(2) $$meta"; \
+	stamp="$(DL_VERIFIED_DIR)/$(1)"; \
+	if [ -n "$(2)" ] && [ -n "$$meta" ] && [ "$$(cat "$$stamp" 2>/dev/null)" = "$$id" ]; then \
+		echo "$(2)"; \
+	else \
+		hash="$$($(MKHASH) sha256 $(DL_DIR)/$(1))"; \
+		[ "$$hash" != "$(2)" ] || [ -z "$$meta" ] || \
+			{ mkdir -p $(DL_VERIFIED_DIR); echo "$$id" > "$$stamp"; }; \
+		echo "$$hash"; \
+	fi)
+endef
+
 # Used in Build/CoreTargets and HostBuild/Core as an integrity check for
 # downloaded files.  It will add a FORCE rule if the sha256 hash does not
 # match, so that the download can be more thoroughly handled by download.pl.
@@ -73,7 +93,7 @@ define check_download_integrity
   $$(if $$(and $(FILE),$$(wildcard $(DL_DIR)/$(FILE)), \
 	       $$(filter undefined,$$(flavor DownloadChecked/$(FILE)))), \
     $$(eval DownloadChecked/$(FILE):=1) \
-    $$(if $$(filter-out $$(call gen_sha256sum,$(FILE)),$$(expected_hash)), \
+    $$(if $$(filter-out $$(call gen_sha256sum_cached,$(FILE),$$(expected_hash)),$$(expected_hash)), \
       $(DL_DIR)/$(FILE): FORCE) \
   )
 endef
@@ -150,6 +170,81 @@ define DownloadMethod/default
 	)
 endef
 
+# Vendor tarballs: download a pre-generated vendor tarball from the OpenWrt
+# mirror ($(URL) = @OPENWRT), or generate it from the upstream source when the
+# mirror does not have it.
+#
+# PKG_HASH          sha256 of the vendor tarball (FILE)
+# PKG_VENDOR_HASH   sha256 of the upstream source (VENDOR_FILE)
+# PKG_VENDOR_FILE   upstream source filename
+# PKG_VENDOR_URL    upstream source URL, the directory VENDOR_FILE is in
+# PKG_VENDOR_SUBDIR subdirectory of the source containing Cargo.toml, optional
+#
+# The top directory of the vendor tarball is the one PKG_BUILD_DIR unpacks to.
+#
+# $(1): "check"
+# $(2): "PKG_" if <name> as in Download/<name> is "default", otherwise "Download/<name>:"
+# $(3): mode and arguments of scripts/gen-cargo-vendor-tarball.sh
+define vendor_generate
+	$(SCRIPT_DIR)/download.pl "$(DL_DIR)" "$(FILE)" "$(HASH)" "$(URL_FILE)" \
+		$(foreach url,$(URL),"$(url)") || \
+	( \
+		$(SCRIPT_DIR)/download.pl "$(DL_DIR)" "$(VENDOR_FILE)" "$(VENDOR_HASH)" "" \
+			$(foreach url,$(VENDOR_URL),"$(url)") && \
+		RUST_CARGO_URL="$(RUST_CARGO_URL)" RUST_CARGO_HASH="$(RUST_CARGO_HASH)" \
+			$(SCRIPT_DIR)/gen-cargo-vendor-tarball.sh $(3) \
+			--cached-source "$(DL_DIR)/$(VENDOR_FILE)" \
+			--output "$(DL_DIR)/$(FILE)" \
+			--hash "$(HASH)" \
+			$(if $(VENDOR_TOPDIR),--top-dir "$(VENDOR_TOPDIR)") \
+			$(if $(VENDOR_SUBDIR),--subdir "$(VENDOR_SUBDIR)") \
+			--quiet \
+	) \
+	$(if $(filter check,$(1)), \
+		$(call check_hash,$(VENDOR_FILE),$(VENDOR_HASH),$(2)VENDOR_HASH) \
+		$(call check_hash,$(FILE),$(HASH),$(2)$(call hash_var,$(MD5SUM))) \
+		$(call check_md5,$(MD5SUM),$(2)MD5SUM,$(2)HASH) \
+	)
+endef
+
+# DownloadMethod/cargo-vendor-crate: vendor tarball of a .crate file.
+#
+# PKG_VENDOR_FILE defaults to $(PKG_NAME)-$(PKG_VERSION).crate
+# PKG_VENDOR_URL  defaults to the crates.io download URL
+define DownloadMethod/cargo-vendor-crate
+	$(call vendor_generate,$(1),$(2),crate "$(PKG_NAME)" "$(PKG_VERSION)")
+endef
+
+# DownloadMethod/cargo-vendor-github: vendor tarball of a GitHub tag archive.
+#
+# PKG_VENDOR_REPO GitHub repository, owner/name
+# PKG_VENDOR_TAG  git tag of the release
+# PKG_VENDOR_FILE defaults to $(PKG_NAME)-$(PKG_VERSION).tar.gz
+# PKG_VENDOR_URL  defaults to the codeload URL of the tag
+define DownloadMethod/cargo-vendor-github
+	$(call vendor_generate,$(1),$(2), \
+		github "$(VENDOR_REPO)" "$(VENDOR_TAG)" "$(PKG_NAME)" "$(PKG_VERSION)")
+endef
+
+# DownloadMethod/cargo-vendor-archive: vendor tarball of any source archive
+# that tar unpacks, with a single top directory. PKG_VENDOR_FILE and
+# PKG_VENDOR_URL are required.
+define DownloadMethod/cargo-vendor-archive
+	$(call vendor_generate,$(1),$(2),archive "$(PKG_NAME)" "$(PKG_VERSION)")
+endef
+
+# DownloadMethod/meson-vendor-wraps: as cargo-vendor-archive, with the files
+# of the meson [wrap-file] wraps in PKG_VENDOR_WRAPS (names in subprojects/
+# without .wrap, globs allowed) in subprojects/packagecache in place of a
+# vendor directory.
+define DownloadMethod/meson-vendor-wraps
+	$(call vendor_generate,$(1),$(2), \
+		meson-wraps "$(PKG_NAME)" "$(PKG_VERSION)" --wraps "$(VENDOR_WRAPS)")
+endef
+
+Validate/cargo-vendor-archive=VENDOR_FILE VENDOR_URL
+Validate/meson-vendor-wraps=VENDOR_FILE VENDOR_URL VENDOR_WRAPS
+
 # $(1): "check"
 # $(2): "PKG_" if <name> as in Download/<name> is "default", otherwise "Download/<name>:"
 # $(3): shell command sequence to do the download
@@ -159,31 +254,16 @@ $(if $(if $(MIRROR), \
 		( $(3) ) \
 		$(if $(filter-out x,$(MIRROR_HASH)), && ( \
 			file_hash="$$$$($(MKHASH) sha256 "$(DL_DIR)/$(FILE)")"; \
-			[ "$$$$file_hash" = "$(MIRROR_HASH)" ] || { \
+			[ "$$$$file_hash" = "$(MIRROR_HASH)" ] || [ "$(MIRROR_HASH)" = "skip" ] || { \
 				echo "Hash mismatch for file $(FILE): expected $(MIRROR_HASH), got $$$$file_hash"; \
 				false; \
 			}; \
-		)),
+		)), \
 	$(3)) \
 $(if $(filter check,$(1)), \
 	$(call check_hash,$(FILE),$(MIRROR_HASH),$(2)MIRROR_$(call hash_var,$(MIRROR_MD5SUM))) \
 	$(call check_md5,$(MIRROR_MD5SUM),$(2)MIRROR_MD5SUM,$(2)MIRROR_HASH) \
 )
-endef
-
-define DownloadMethod/cvs
-	$(call wrap_mirror,$(1),$(2), \
-		echo "Checking out files from the cvs repository..."; \
-		mkdir -p $(TMP_DIR)/dl && \
-		cd $(TMP_DIR)/dl && \
-		rm -rf $(SUBDIR) && \
-		[ \! -d $(SUBDIR) ] && \
-		cvs -d $(URL) export $(SOURCE_VERSION) $(SUBDIR) && \
-		echo "Packing checkout..." && \
-		$(call dl_tar_pack,$(TMP_DIR)/dl/$(FILE),$(SUBDIR)) && \
-		mv $(TMP_DIR)/dl/$(FILE) $(DL_DIR)/ && \
-		rm -rf $(SUBDIR); \
-	)
 endef
 
 define DownloadMethod/svn
@@ -238,7 +318,7 @@ define DownloadMethod/rawgit
 	[ \! -d $(SUBDIR) ] && \
 	git clone $(OPTS) $(URL) $(SUBDIR) && \
 	(cd $(SUBDIR) && git checkout $(SOURCE_VERSION)) && \
-	export TAR_TIMESTAMP=`cd $(SUBDIR) && git log -1 --format='@%ct'` && \
+	export TAR_TIMESTAMP=`cd $(SUBDIR) && git log -1 --no-show-signature --format='@%ct'` && \
 	echo "Generating formal git archive (apply .gitattributes rules)" && \
 	(cd $(SUBDIR) && git config core.abbrev 8 && \
 	git archive --format=tar HEAD --output=../$(SUBDIR).tar.git) && \
@@ -305,7 +385,6 @@ define DownloadMethod/darcs
 	)
 endef
 
-Validate/cvs=SOURCE_VERSION SUBDIR
 Validate/svn=SOURCE_VERSION SUBDIR
 Validate/git=SOURCE_VERSION SUBDIR
 Validate/bzr=SOURCE_VERSION SUBDIR
@@ -326,6 +405,14 @@ define Download/Defaults
   SOURCE_VERSION:=
   OPTS:=
   SUBMODULES:=
+  VENDOR_FILE:=
+  VENDOR_HASH:=x
+  VENDOR_URL:=
+  VENDOR_SUBDIR:=
+  VENDOR_REPO:=
+  VENDOR_TAG:=
+  VENDOR_TOPDIR:=
+  VENDOR_WRAPS:=
 endef
 
 define Download/default
@@ -341,6 +428,20 @@ define Download/default
   SOURCE_VERSION:=$(PKG_SOURCE_VERSION)
   $(if $(PKG_MD5SUM),MD5SUM:=$(PKG_MD5SUM))
   $(if $(PKG_HASH),HASH:=$(PKG_HASH))
+  $(if $(PKG_VENDOR_HASH),VENDOR_HASH:=$(PKG_VENDOR_HASH))
+  $(if $(PKG_VENDOR_FILE),VENDOR_FILE:=$(PKG_VENDOR_FILE), \
+    $(if $(filter cargo-vendor-crate,$(PKG_SOURCE_PROTO)),VENDOR_FILE:=$(PKG_NAME)-$(PKG_VERSION).crate, \
+    $(if $(filter cargo-vendor-github,$(PKG_SOURCE_PROTO)),VENDOR_FILE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz)))
+  $(if $(PKG_VENDOR_URL),VENDOR_URL:=$(PKG_VENDOR_URL), \
+    $(if $(filter cargo-vendor-crate,$(PKG_SOURCE_PROTO)), \
+      VENDOR_URL:=https://static.crates.io/crates/$(PKG_NAME), \
+    $(if $(filter cargo-vendor-github,$(PKG_SOURCE_PROTO)), \
+      VENDOR_URL:=https://codeload.github.com/$(PKG_VENDOR_REPO)/tar.gz/$(PKG_VENDOR_TAG)?)))
+  $(if $(PKG_VENDOR_SUBDIR),VENDOR_SUBDIR:=$(PKG_VENDOR_SUBDIR))
+  $(if $(PKG_VENDOR_REPO),VENDOR_REPO:=$(PKG_VENDOR_REPO))
+  $(if $(PKG_VENDOR_TAG),VENDOR_TAG:=$(PKG_VENDOR_TAG))
+  $(if $(PKG_VENDOR_WRAPS),VENDOR_WRAPS:=$(PKG_VENDOR_WRAPS))
+  VENDOR_TOPDIR:=$(notdir $(or $(PKG_BUILD_DIR),$(HOST_BUILD_DIR)))
 endef
 
 define Download

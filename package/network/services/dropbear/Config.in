@@ -105,101 +105,108 @@ config DROPBEAR_SVR_PUBKEY_OPTIONS
 
 		Default: enabled.
 
-config DROPBEAR_LASTLOG
-	bool "Write lastlog"
-	help
-		/var/log/lastlog is a record of the last login of each user.
-		To view the last login, use "lastlog" command (OpenWrt package shadow-lastlog).
+## ---
+## Nowadays, utmp/wtmp is not supported by musl libc.
+## Ref: https://wiki.musl-libc.org/faq.html#Q:_Why_is_the_utmp/wtmp_functionality_only_implemented_as_stubs?
 
-		If enabled, Drobear will update it with SSH logins.
-		If disabled, SSH logins will not be recorded.
-
-		Warning: The lastlog record is considered a security and privacy risk by some.
-
-		Default: disabled.
-
-config DROPBEAR_LASTLOG_PATH
-	string "lastlog path:"
-	default "/var/log/lastlog"
-	depends on DROPBEAR_LASTLOG
-	help
-		Default: /var/log/lastlog
-
-config DROPBEAR_WTMP
-	bool "Write wtmp"
-	help
-		/var/log/wtmp is a record of all previous logins.
-		The file needs to be manually created - Dropbear will update it only if it already exists.
-		To view login history, use "last" command, available in Busybox but not included by default.
-
-		If enabled, Dropbear will add SSH logins to the record.
-		If disabled, SSH logins will not be recorded.
-
-		Warning: The wtmp record is considered a security and privacy risk by some.
-
-		Default: disabled.
-
-config DROPBEAR_WTMP_PATH
-	string "wtmp path:"
-	default "/var/log/wtmp"
-	depends on DROPBEAR_WTMP
-	help
-		Default: /var/log/wtmp
-
-# ---- MUSL UTMP ----
-# In musl, pututline() and related functions are all stubs, and login(), logout() and ttyslot() don't exist.
-# In Dropbear there is an option to write to utmp directly, but it uses ttyslot().
-# So, there is currently no way to make utmp work with musl.
-# Revisit this if/when Dropbear implements ttyslot() or an independent utmp direct write.
-comment "* note: utmp is unavailable with musl libc"
+## utmp-specific notes:
+## In musl, pututline() and related functions are all stubs, and login(), logout() and ttyslot() don't exist.
+## In Dropbear there is an option to write to utmp directly, but it uses ttyslot().
+## So, there is currently no way to make utmp work with musl.
+## Revisit this if/when Dropbear implements ttyslot() or an independent utmp direct write.
+## ---
+comment "* note: lastlog/login()/utmp/wtmp are unavailable with musl libc"
 	depends on USE_MUSL
 
-config DROPBEAR_UTMP
-	bool "Write utmp"
-	depends on !USE_MUSL
-	help
-		/var/run/utmp is a record of currently logged-in users.
-		To view logged-in users, use "w", "who" or "users" commands.
+if !USE_MUSL
 
-		If enabled, Dropbear will keep it updated with users that log in via SSH.
-		If disabled, SSH logins will not be recorded.
+	config DROPBEAR_LASTLOG
+		bool "Write lastlog"
+		help
+			/var/log/lastlog is a record of the last login of each user.
+			To view the last login, use "lastlog" command (OpenWrt package shadow-lastlog).
 
-		Warning: The utmp record is considered a security and privacy risk by some.
+			If enabled, Drobear will update it with SSH logins.
+			If disabled, SSH logins will not be recorded.
 
-		Default: disabled.
+			Warning: The lastlog record is considered a security and privacy risk by some.
 
-config DROPBEAR_UTMP_PATH
-	string "utmp path:"
-	default "/var/run/utmp"
-	depends on DROPBEAR_UTMP
-	help
-		Default: /var/run/utmp
+			Default: disabled.
 
-# musl pututline() and related functions are all stubs.
-config DROPBEAR_PUTUTLINE
-	bool "Use pututline() to write to utmp"
-	default y if !DROPBEAR_LOGINFUNC
-	depends on !USE_MUSL && !DROPBEAR_LOGINFUNC && DROPBEAR_UTMP
-	help
-		If enabled, Dropbear will use pututline() to write into the utmp file.
-		If disabled, Dropbear will write to utmp file directly.
+	config DROPBEAR_LASTLOG_PATH
+		string "lastlog path:"
+		default "/var/log/lastlog"
+		depends on DROPBEAR_LASTLOG
+		help
+			Default: /var/log/lastlog
 
-		Consider using login() and logout() functions via DROPBEAR_LOGINFUNC option if available.
+	config DROPBEAR_LOGINFUNC
+		bool "Use login() and logout() functions"
+		help
+			If enabled, Dropbear will use login() and logout() functions to record logins in utmp and wtmp files.
 
-		Default: enabled if DROPBEAR_UTMP is enabled.
+			If disabled, see DROPBEAR_UTMP and DROPBEAR_WTMP options.
 
-# musl doesn't have login() and logout()
-config DROPBEAR_LOGINFUNC
-	bool "Use login() and logout() functions"
-	depends on !USE_MUSL
-	select DROPBEAR_UTMP
-	select DROPBEAR_WTMP
-	help
-		If enabled, Dropbear will use login() and logout() functions to record logins in utmp and wtmp files.
-		If disabled, see DROPBEAR_UTMP and DROPBEAR_WTMP options.
+			Default: disabled.
 
-		Default: disabled.
+	comment "* note: utmp/wtmp are handled by libc implementation rather than Dropbear"
+		depends on DROPBEAR_LOGINFUNC
 
+	config DROPBEAR_WTMP
+		bool "Write wtmp"
+		depends on !DROPBEAR_LOGINFUNC
+		help
+			/var/log/wtmp is a record of all previous logins.
+			The file needs to be manually created - Dropbear will update it only if it already exists.
+			To view login history, use "last" command, available in Busybox but not included by default.
+
+			If enabled, Dropbear will add SSH logins to the record.
+			If disabled, SSH logins will not be recorded.
+
+			Warning: The wtmp record is considered a security and privacy risk by some.
+
+			Default: disabled.
+
+	config DROPBEAR_WTMP_PATH
+		string "wtmp path:"
+		default "/var/log/wtmp"
+		depends on DROPBEAR_WTMP
+		help
+			Default: /var/log/wtmp
+
+	config DROPBEAR_UTMP
+		bool "Write utmp"
+		depends on !DROPBEAR_LOGINFUNC
+		help
+			/var/run/utmp is a record of currently logged-in users.
+			To view logged-in users, use "w", "who" or "users" commands.
+
+			If enabled, Dropbear will keep it updated with users that log in via SSH.
+			If disabled, SSH logins will not be recorded.
+
+			Warning: The utmp record is considered a security and privacy risk by some.
+
+			Default: disabled.
+
+	config DROPBEAR_UTMP_PATH
+		string "utmp path:"
+		default "/var/run/utmp"
+		depends on DROPBEAR_UTMP
+		help
+			Default: /var/run/utmp
+
+	config DROPBEAR_PUTUTLINE
+		bool "Use pututline() to write to utmp"
+		depends on DROPBEAR_UTMP
+		help
+			If enabled, Dropbear will use pututline() to write into the utmp file.
+			If disabled, Dropbear will write to utmp file directly.
+
+			PS: DROPBEAR_UTMP_PATH value is likely to be ignored if DROPBEAR_PUTUTLINE is enabled.
+
+			Default: disabled.
+
+endif
 ## </LOGIN OPTIONS>
 
 ## <FEATURES>
@@ -528,6 +535,28 @@ menu "Resource limits"
 			Possible values: 1 to 80 (from src/sysoptions.h)
 			Default: 10
 
+	config DROPBEAR_MAX_PUBKEY_QUERIES
+		int "Max. public key queries per session"
+		range 1 80
+		default 15
+		help
+			Default maximum number of public key queries per session (server option).
+
+			Public key queries aren't a risk for brute forcing authentication,
+			but can be a user enumeration/privacy concern if an attacker
+			attempts to iterate known public keys such as those published by GitHub.
+
+			This limit has a trade-off. Having a smaller limit reduces the number
+			of legitimate public keys that can be presented by a client/ssh agent.
+
+			That is still a risk against a single host,
+			but this limit may deter internet-wide scanning.
+
+			If -T argument or DROPBEAR_MAX_AUTH_TRIES is larger that will be used instead.
+
+			Possible values: 1 to 80 (same as for DROPBEAR_MAX_AUTH_TRIES)
+			Default: 15
+
 	config DROPBEAR_UNAUTH_CLOSE_DELAY
 		int "Delay closing unauth. connections (seconds)"
 		range 0 3600
@@ -629,6 +658,21 @@ menu "Resource limits"
 			Note: values below 30 seconds are not recommended.
 
 			This can be changed at run-time with the -I argument.
+
+			Possible values: 0 to 604800 (7 days)
+			Default: 0 (disabled).
+
+	config DROPBEAR_DEFAULT_MAX_DURATION
+		int "Default max. session duration (seconds)"
+		range 0 604800
+		default 0
+		help
+			If session duration exceeds specified limit, disconnect.
+			Applies to both server and client.
+
+			Note: values below 30 seconds are not recommended.
+
+			This can be changed at run-time with the -M argument.
 
 			Possible values: 0 to 604800 (7 days)
 			Default: 0 (disabled).
@@ -856,6 +900,7 @@ menu "Encryption options"
 
 	config DROPBEAR_ECDSA
 		bool "ECDSA"
+		default y if !SMALL_FLASH
 		help
 			This enables the following public key algorithm:
 			 * ecdsa-sha2-nistp256 - 256-bit elliptic curve
@@ -867,7 +912,7 @@ menu "Encryption options"
 
 			ECDSA significantly faster than RSA or DSS, but slower than Ed25519.
 
-			Default: disabled.
+			Default: enabled, except devices with very small flash.
 
 	config DROPBEAR_ED25519
 		bool "Ed25519"
@@ -977,7 +1022,7 @@ menu "Encryption options"
 
 			Post-quantum KEM can avoid harvest-now-decrypt-later style attacks.
 
-			Default: enabled, except devices with very small flash.
+			Default: disabled.
 
 	config DROPBEAR_SNTRUP761
 		bool "sntrup761 [POST-QUANTUM]"

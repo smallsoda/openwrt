@@ -70,9 +70,9 @@ function setup_phy(phy, config, data) {
 	config.channel = +config.channel;
 	config.frequency = get_channel_frequency(config.band, config.channel);
 
-	if (config.country) {
-		log(`Setting country code to ${config.country}`);
-		system(`iw reg set ${config.country}`);
+	if (config.country_code) {
+		log(`Setting country code to ${config.country_code}`);
+		system(`iw reg set ${config.country_code}`);
 	}
 
 	set_default(config, 'rxantenna', 0xffffffff);
@@ -83,7 +83,9 @@ function setup_phy(phy, config, data) {
 	if (config.rxantenna == 'all')
 		config.rxantenna = 0xffffffff;
 
-	if (config.txantenna != data?.txantenna || config.rxantenna != data?.rxantenna)
+	let antenna_changed = (config.txantenna != data?.txantenna || config.rxantenna != data?.rxantenna);
+
+	if (antenna_changed)
 		reset_config(phy, config.radio);
 
 	netifd.set_data({
@@ -93,14 +95,17 @@ function setup_phy(phy, config, data) {
 		rxantenna: config.rxantenna
 	});
 
-	if (config.txpower)
+	if (config.txpower != null)
 		config.txpower = 'fixed ' + config.txpower + '00';
 	else
 		config.txpower = 'auto';
 
-	log(`Configuring '${phy}' txantenna: ${config.txantenna}, rxantenna: ${config.rxantenna} distance: ${config.distance}`);
-	system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna}`);
-	system(`iw phy ${phy} set distance ${config.distance}`);
+	log(`Configuring '${phy}' distance: ${config.distance}`);
+	if (antenna_changed) {
+		log(`Setting antenna for '${phy}' txantenna: ${config.txantenna}, rxantenna: ${config.rxantenna}`);
+		system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna} >/dev/null 2>&1`);
+	}
+	system(`iw phy ${phy} set distance ${config.distance} >/dev/null 2>&1`);
 	system(`iw phy ${phy} set txpower ${config.txpower}`);
 
 	if (config.frag)
@@ -120,6 +125,20 @@ function iw_htmode(config) {
 	case "HE20":
 	case "EHT20":
 		return "HT20";
+	case "HT40":
+	case "VHT40":
+	case "HE40":
+	case "EHT40":
+		switch (config.band) {
+		case "2g":
+			return (+config.channel < 7) ? "HT40+" : "HT40-";
+		case "6g":
+			let ch = +config.channel;
+			let c_base = int((ch - 1) / 8) * 8 + 1;
+			return "40 " + (5950 + (c_base + 2) * 5);
+		default:
+			return ((+config.channel / 4) % 2) ? "HT40+" : "HT40-";
+		}
 	case "VHT80":
 	case "HE80":
 	case "EHT80":
@@ -130,18 +149,6 @@ function iw_htmode(config) {
 	case "NONE":
 	case "NOHT":
 		return "NOHT";
-	}
-
-	if (substr(config.htmode, 2) == "40") {
-		switch (config.band) {
-		case "2g":
-			if (+config.channel < 7)
-				return "HT40+";
-			else
-				return "HT40-";
-		default:
-			return ((+config.channel / 4) % 2) ? "HT40+" : "HT40-";
-		}
 	}
 
 	return null;
@@ -157,38 +164,8 @@ function config_add_mesh_params(config, data) {
 		config_add(config, param, data[param]);
 }
 
-function setup_mlo(data) {
-	let config = {};
-	let idx = 0;
-
-	for (let k, v in data.interfaces) {
-		let ifname = v.config.ifname;
-		if (!ifname)
-			ifname = 'ap-mld' + idx++;
-
-		delete v.config.ifname;
-		config[ifname] = v.config;
-		netifd.set_vif(k, ifname);
-
-		v.config.phy = find_phy(v.config.radio_config[0], true);
-		delete v.config.radio_config;
-	}
-
-	let ret = ubus.call('hostapd', 'mld_set', { config });
-	if (type(ret) != "object")
-		return netifd.setup_failed('HOSTAPD_START_FAILED');
-
-	netifd.add_process('/usr/sbin/hostapd', ret.pid, true, true);
-	netifd.set_up();
-
-	return 0;
-}
-
 function setup() {
 	let data = json(ARGV[3]);
-
-	if (ARGV[2] == "#mlo")
-		return setup_mlo(data);
 
 	data.phy = find_phy(data.config, true);
 	if (!data.phy) {
@@ -201,11 +178,33 @@ function setup() {
 	data.ifname_prefix = data.config.ifname_prefix;
 	if (!data.ifname_prefix)
 		data.ifname_prefix = data.phy + data.vif_phy_suffix + "-";
-	let active_ifnames = [];
 
 	log('Starting');
 
-	validate('device', data.config);
+	let config = data.config;
+
+	if (!config.band) {
+		switch (config.hwmode) {
+		case 'a':
+		case '11a':
+			config.band = '5g';
+			break;
+		case 'ad':
+		case '11ad':
+			config.band = '60g';
+			break;
+		case 'b':
+		case 'g':
+		case '11b':
+		case '11g':
+		default:
+			config.band = '2g';
+			break;
+		}
+	}
+	delete config.hwmode;
+
+	validate('device', config);
 	setup_phy(data.phy, data.config, data.data);
 
 	let supplicant_mesh;
@@ -219,20 +218,19 @@ function setup() {
 		idx[mode] ??= 0;
 		let mode_idx = idx[mode]++;
 
-		if (!v.config.ifname) 
+		if (!v.config.ifname)
 			v.config.ifname = data.ifname_prefix + mode + mode_idx;
-		push(active_ifnames, v.config.ifname);
 
 		if (v.config.encryption == 'owe' && v.config.owe_transition) {
 			mode_idx = idx[mode]++;
 			v.config.owe_transition_ifname = data.ifname_prefix + mode + mode_idx;
-			push(active_ifnames, v.config.ifname);
 		}
 
 		switch (mode) {
-		case 'link':
 		case 'ap':
 			has_ap = true;
+			for (let _, sta in v.stas)
+				validate('station', sta.config);
 			// fallthrough
 		case 'sta':
 		case 'adhoc':
@@ -240,9 +238,8 @@ function setup() {
 			if (mode != "ap")
 				data.config.noscan = true;
 			validate('iface', v.config);
-			iface.prepare(v.config, data.phy + data.phy_suffix, data.config.num_global_macaddr, data.config.macaddr_base);
-			if (mode != "link")
-				netifd.set_vif(k, v.config.ifname);
+			iface.prepare(v.config);
+			netifd.set_vif(k, v.config.ifname);
 			break;
 		}
 
@@ -252,11 +249,13 @@ function setup() {
 				break;
 			// fallthrough
 		case 'mesh':
-			supplicant_mesh ??= !system("wpa_supplicant -vmesh");
+			supplicant_mesh ??= (fs.access('/usr/sbin/wpa_supplicant', 'x') && !system("/usr/sbin/wpa_supplicant -vmesh"));
 			if (mode == "mesh" && !supplicant_mesh)
 				break;
 			// fallthrough
 		case 'sta':
+			data.ap_start_disabled = true;
+			data.channel_follow = true;
 			let config = supplicant.generate(supplicant_data, data, v);
 			if (mode == "mesh")
 				config_add_mesh_params(config, v.config);
@@ -276,11 +275,15 @@ function setup() {
 		if (!v.config.default_macaddr)
 			config.macaddr = v.config.macaddr;
 
-		config_add(config, "htmode", wdev_htmode(data.config));
+		config_add(config, "freq", data.config.frequency);
+		config_add(config, "htmode", iw_htmode(data.config));
 		if (mode != "monitor") {
-			config_add(config, "basic-rates", supplicant.ratelist(data.config.basic_rate));
+			let basic_rate_list = v.config.basic_rate ?? data.config.basic_rate;
+			config_add(config, "basic-rates", supplicant.ratelist(basic_rate_list));
 			config_add(config, "mcast-rate", supplicant.ratestr(v.config.mcast_rate));
 			config_add(config, "beacon-interval", data.config.beacon_int);
+			if (mode == "adhoc")
+				config_add(config, "bssid", v.config.bssid);
 			if (mode == "mesh") {
 				config_add(config, "ssid", v.config.mesh_id);
 				config_add_mesh_params(config, v.config);
@@ -290,13 +293,18 @@ function setup() {
 		wdev_data[v.config.ifname] = config;
 	}
 
-	if (length(supplicant_data) > 0)
+	system([
+		"ucode", "/usr/share/hostap/wdev.uc", data.phy + data.phy_suffix, "set_config",
+		sprintf("%J", wdev_data),
+		`num_global=${data.config.num_global_macaddr ?? ""}`,
+		`macaddr_base=${data.config.macaddr_base ?? ""}`,
+	]);
+
+	if (fs.access('/usr/sbin/wpa_supplicant', 'x'))
 		supplicant.setup(supplicant_data, data);
 
-	if (has_ap)
+	if (fs.access('/usr/sbin/hostapd', 'x'))
 		hostapd.setup(data);
-
-	system(`ucode /usr/share/hostap/wdev.uc ${data.phy}${data.phy_suffix} set_config '${printf("%J", wdev_data)}' ${join(' ', active_ifnames)}`);
 
 	if (length(supplicant_data) > 0)
 		supplicant.start(data);

@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=r8126
-PKG_VERSION:=10.015.00
-PKG_RELEASE:=3
+PKG_VERSION:=10.018.00
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=https://github.com/openwrt/rtl8126/releases/download/$(PKG_VERSION)
-PKG_HASH:=fac513aa925264a95b053e7532fcda56022d29db288f6625fafee2759a8a6124
+PKG_HASH:=ee3f531b65910e2443d98048d0578d404f538fa28ba428782da39f3e189a6fff
 
 PKG_BUILD_PARALLEL:=1
 PKG_LICENSE:=GPLv2
@@ -21,7 +21,7 @@ define KernelPackage/r8126
   DEPENDS:=@PCI_SUPPORT +kmod-libphy
   FILES:=$(PKG_BUILD_DIR)/src/r8126.ko
   AUTOLOAD:=$(call AutoProbe,r8126,1)
-  PROVIDES:=kmod-r8169
+  PROVIDES:=@kmod-r8169-any
   VARIANT:=regular
 endef
 

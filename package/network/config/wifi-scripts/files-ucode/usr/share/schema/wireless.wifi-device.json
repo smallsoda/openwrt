@@ -88,7 +88,7 @@
 			"type": "string"
 		},
 		"cell_density": {
-			"description": "Configures data rates based on the coverage cell density. Normal configures basic rates to 6, 12, 24 Mbps if legacy_rates is 0, else to 5.5, 11 Mbps. High configures basic rates to 12, 24 Mbps if legacy_rates is 0, else to the 11 Mbps rate. Very High configures 24 Mbps as the basic rate. Supported rates lower than the minimum basic rate are not offered. The basic_rate and supported_rates options overrides this option. 0 = Disabled, 1 = Normal, 2 = High, 3 = Very High",
+			"description": "Configures data rates based on the coverage cell density. Normal configures basic rates to 6, 12, 24 Mbps if legacy_rates is 0, else to 5.5, 11 Mbps. High configures basic rates to 12, 24 Mbps if legacy_rates is 0, else to the 11 Mbps rate. Very High configures 24 Mbps as the basic rate if legacy_rates is 0, else the 11 Mbps rate. Supported rates lower than the minimum basic rate are not offered. The basic_rate and supported_rates options overrides this option. 0 = Disabled, 1 = Normal, 2 = High, 3 = Very High",
 			"type": "number",
 			"default": 0,
 			"minimum": 0,
@@ -150,6 +150,21 @@
 		},
 		"dsss_cck_40": {
 			"description": "DSSS/CCK Mode in 40 MHz allowed in Beacon, Measurement Pilot and Probe Response frames",
+			"type": "boolean",
+			"default": true
+		},
+		"eht_mu_beamformer": {
+			"description": "EHT multiple user beamformer support",
+			"type": "boolean",
+			"default": true
+		},
+		"eht_su_beamformee": {
+			"description": "EHT single user beamformee support",
+			"type": "boolean",
+			"default": true
+		},
+		"eht_su_beamformer": {
+			"description": "EHT single user beamformer support",
 			"type": "boolean",
 			"default": true
 		},
@@ -319,6 +334,28 @@
 			"type": "number",
 			"default": 3
 		},
+		"he_spr_srg_bss_colors": {
+			"description": "BSS colors (0-63) of the Spatial Reuse Group",
+			"type": "array",
+			"items": {
+				"type": "number"
+			}
+		},
+		"he_spr_srg_obss_pd_max_offset": {
+			"description": "SRG OBSS PD Max Offset",
+			"type": "number"
+		},
+		"he_spr_srg_obss_pd_min_offset": {
+			"description": "SRG OBSS PD Min Offset",
+			"type": "number"
+		},
+		"he_spr_srg_partial_bssid": {
+			"description": "Partial BSSID values (0-63) of the Spatial Reuse Group",
+			"type": "array",
+			"items": {
+				"type": "number"
+			}
+		},
 		"he_su_beamformee": {
 			"description": "",
 			"type": "boolean",
@@ -333,6 +370,11 @@
 			"description": "",
 			"type": "boolean",
 			"default": false
+		},
+		"he_twt_responder": {
+			"description": "Whether TWT (HE) responder is enabled.",
+			"type": "boolean",
+			"default": true
 		},
 		"hostapd_options": {
 			"type": "array",
@@ -534,10 +576,6 @@
 			"type": "number",
 			"default": 1
 		},
-		"no_probe_resp_if_max_sta": {
-			"description": "Do not answer probe requests if iface_max_num_sta was reached",
-			"type": "boolean"
-		},
 		"noscan": {
 			"description": "Do not scan for overlapping BSSs in HT40+/- mode.",
 			"type": "boolean",
@@ -554,6 +592,12 @@
 		"phy": {
 			"description": "Name of the phy, as described in board.json",
 			"type": "string"
+		},
+		"punct_bitmap": {
+			"description": "EHT disabled subchannel bitmap: bit n punctures the nth 20 MHz subchannel from the lowest frequency",
+			"type": "number",
+			"minimum": 0,
+			"maximum": 65535
 		},
 		"radio": {
 			"description": "Index of the phy radio (for multi-radio PHYs)",
@@ -586,6 +630,13 @@
 			"description": "Reject STA association if RSSI is below given threshold (in dBm)",
 			"type": "number",
 			"default": 0
+		},
+		"rssi_reject_assoc_timeout": {
+			"description": "Association retry delay in seconds allowed by the STA if RSSI has not met the threshold",
+			"type": "number",
+			"default": 30,
+			"minimum": 0,
+			"maximum": 255
 		},
 		"rts": {
 			"description": "Override the RTS/CTS threshold",
@@ -702,6 +753,10 @@
 		"txpower": {
 			"description": "Specifies the maximum desired transmission power in dBm. The actual txpower used depends on regulatory requirements",
 			"type": "number"
+		},
+		"type": {
+			"description": "Device type (only mac80211 supported)",
+			"type": "string"
 		},
 		"vht160": {
 			"description": "Supported channel widths. 0 == 160MHz and 80+80 MHz not supported, 1 == 160 MHz supported, 2 == 160MHz and 80+80 MHz supported",

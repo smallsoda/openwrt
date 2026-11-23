@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ead
-PKG_RELEASE:=1
+PKG_RELEASE:=3
 
 PKG_BUILD_DEPENDS:=libpcap
 PKG_BUILD_DIR:=$(BUILD_DIR)/ead
@@ -24,7 +24,7 @@ define Package/ead
   SECTION:=net
   CATEGORY:=Base system
   TITLE:=Emergency Access Daemon
-  URL:=http://bridge.sourceforge.net/
+  URL:=https://bridge.sourceforge.net/
 endef
 
 define Package/ead/description
@@ -44,7 +44,8 @@ MAKE_FLAGS += \
 	CONFIGURE_ARGS="$(CONFIGURE_ARGS)" \
 	LIBS_EADCLIENT="$(PKG_BUILD_DIR)/tinysrp/libtinysrp.a" \
 	LIBS_EAD="$(PKG_BUILD_DIR)/tinysrp/libtinysrp.a $(STAGING_DIR)/usr/lib/libpcap.a" \
-	CFLAGS="$(TARGET_CFLAGS)"
+	CFLAGS="$(TARGET_CFLAGS)" \
+	LDFLAGS="$(TARGET_LDFLAGS)"
 
 define Package/ead/install
 	$(INSTALL_DIR) $(1)/sbin

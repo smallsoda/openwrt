@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=r8127
-PKG_VERSION:=11.014.00
-PKG_RELEASE:=3
+PKG_VERSION:=11.017.02
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=https://github.com/openwrt/rtl8127/releases/download/$(PKG_VERSION)
-PKG_HASH:=f496bc16c32d2e8f9482c57d006604c70d9e8d55b4f1f999b88c602de9104094
+PKG_HASH:=8be2612d9b30e9a00c33e44c71e1bf07703a0b34051be6fa6cccfaea5532b78e
 
 PKG_BUILD_PARALLEL:=1
 PKG_LICENSE:=GPLv2
@@ -21,7 +21,7 @@ define KernelPackage/r8127
   DEPENDS:=@PCI_SUPPORT +kmod-libphy
   FILES:=$(PKG_BUILD_DIR)/src/r8127.ko
   AUTOLOAD:=$(call AutoProbe,r8127,1)
-  PROVIDES:=kmod-r8169
+  PROVIDES:=@kmod-r8169-any
   VARIANT:=regular
 endef
 
